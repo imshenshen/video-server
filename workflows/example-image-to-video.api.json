@@ -1,0 +1,18 @@
+{
+  "3": {
+    "class_type": "KSampler",
+    "inputs": { "seed": 1 }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "" }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "" }
+  },
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": { "image": "" }
+  }
+}
