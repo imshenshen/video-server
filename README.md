@@ -5,12 +5,20 @@ ComfyUI 的受控异步任务服务，同时提供 REST 和 MCP Streamable HTTP 
 ## 准备工作流
 
 1. 在 ComfyUI 中确认工作流可以正常运行。
-2. 使用 **Export (API Format)** 导出 JSON，放入 `workflows/`。
+2. 使用 **Export (API Format)** 导出 JSON，放入 `WORKFLOW_DIR`。
 3. 参考 `example-image-to-video.manifest.json` 新建对应的 `.manifest.json`。
 4. 设置 `enabled: true`。
 5. 将 `nodeId` 和 `input` 映射到实际工作流节点。
 
+manifest 可以放在 `WORKFLOW_DIR`，也可以通过 `MANIFEST_DIR` 放到独立目录。无论 manifest
+位于哪里，其中的 `workflowFile` 都相对 `WORKFLOW_DIR` 解析。完整格式、映射原理和安全边界见
+[`docs/workflow-manifests.md`](docs/workflow-manifests.md)。
+
 服务启动时会校验所有启用的 manifest；生产环境建议重启服务来发布工作流新版本。
+
+需要从 API Workflow 交互式生成或修复 manifest 时，可让支持 Agent Skills 的 Agent 使用仓库内
+[`skills/comfyui-manifest-builder/SKILL.md`](skills/comfyui-manifest-builder/SKILL.md)。技能会列出
+候选节点、要求确认映射，并在写入前验证每个 `nodeId` 和 `input`。
 
 ## 运行
 

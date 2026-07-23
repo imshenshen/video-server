@@ -1,0 +1,4 @@
+interface:
+  display_name: "ComfyUI Manifest Builder"
+  short_description: "Inspect API workflows and build safe manifests"
+  default_prompt: "Use $comfyui-manifest-builder to inspect this ComfyUI API workflow and create a validated video-server manifest."

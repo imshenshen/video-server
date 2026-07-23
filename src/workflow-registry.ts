@@ -53,12 +53,17 @@ function validateParameter(name: string, value: unknown, binding: ParameterBindi
 export class WorkflowRegistry {
   private readonly manifests = new Map<string, WorkflowManifest>();
 
+  constructor(
+    private readonly workflowDir = config.workflowDir,
+    private readonly manifestDir = config.manifestDir
+  ) {}
+
   async load(): Promise<void> {
     this.manifests.clear();
-    const entries = await readdir(config.workflowDir, { withFileTypes: true });
+    const entries = await readdir(this.manifestDir, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith(".manifest.json")) continue;
-      const data = JSON.parse(await readFile(path.join(config.workflowDir, entry.name), "utf8"));
+      const data = JSON.parse(await readFile(path.join(this.manifestDir, entry.name), "utf8"));
       const manifest = manifestSchema.parse(data) as WorkflowManifest;
       if (!manifest.enabled) continue;
       if (this.manifests.has(manifest.id)) throw new Error(`Duplicate workflow ID: ${manifest.id}`);
@@ -144,8 +149,8 @@ export class WorkflowRegistry {
   }
 
   private assertWorkflowPath(filename: string): string {
-    const filePath = path.resolve(config.workflowDir, filename);
-    const relative = path.relative(config.workflowDir, filePath);
+    const filePath = path.resolve(this.workflowDir, filename);
+    const relative = path.relative(this.workflowDir, filePath);
     if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Workflow file escapes WORKFLOW_DIR");
     return filePath;
   }

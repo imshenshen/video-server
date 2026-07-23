@@ -16,6 +16,7 @@ export const config = {
   comfyTimeoutMs: integer("COMFY_JOB_TIMEOUT_MS", 30 * 60 * 1000),
   concurrency: integer("JOB_CONCURRENCY", 1),
   workflowDir: path.resolve(process.env.WORKFLOW_DIR ?? "./workflows"),
+  manifestDir: path.resolve(process.env.MANIFEST_DIR ?? process.env.WORKFLOW_DIR ?? "./workflows"),
   jobDataDir: path.resolve(process.env.JOB_DATA_DIR ?? "./data/jobs"),
   jobTempDir: path.resolve(process.env.JOB_TEMP_DIR ?? "./tmp/jobs"),
   assetServiceUrl: (process.env.ASSET_SERVICE_URL ?? "http://127.0.0.1:8080").replace(/\/$/, ""),
