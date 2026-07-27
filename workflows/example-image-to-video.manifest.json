@@ -6,20 +6,30 @@
   "enabled": false,
   "workflowFile": "example-image-to-video.api.json",
   "bindings": {
-    "prompt": { "nodeId": "6", "input": "text" },
-    "negativePrompt": { "nodeId": "7", "input": "text" },
-    "assets": {
-      "start_frame": { "nodeId": "10", "input": "image", "required": true }
+    "prompt": {
+      "nodeId": "6",
+      "input": "text"
     },
-    "parameters": {
-      "seed": {
-        "nodeId": "3",
-        "input": "seed",
-        "type": "integer",
-        "minimum": 0,
-        "maximum": 2147483647,
-        "default": 1
+    "negativePrompt": {
+      "nodeId": "7",
+      "input": "text"
+    },
+    "assets": {
+      "start_frame": {
+        "nodeId": "10",
+        "input": "image",
+        "required": true
       }
-    }
-  }
+    },
+    "parameters": {},
+    "randomSeeds": [
+      {
+        "nodeId": "3",
+        "input": "seed"
+      }
+    ]
+  },
+  "allowedTenants": [
+    "example-user"
+  ]
 }

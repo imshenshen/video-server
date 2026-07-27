@@ -37,6 +37,19 @@ pm2 save
 
 服务启动入口会自动读取当前目录的 `.env`。更新代码后执行 `npm ci && npm run build && pm2 restart video-server --update-env`。
 
+
+## 家庭多用户 Token
+
+少量固定用户无需注册系统。通过 JSON 对象把每个用户（Tenant）绑定到唯一 Token：
+
+```env
+VIDEO_SERVER_USERS={"dad":"replace-with-at-least-16-chars","mom":"another-private-token"}
+```
+
+设置后，服务端根据 Bearer Token 固定 Tenant，并忽略客户端传入的 `x-tenant-id`。每个 Token
+只能查看、创建和取消自己的任务，输入及输出资产请求也使用该固定 Tenant。Token 必须唯一且至少 16 个字符。
+此模式优先于兼容用的 `VIDEO_SERVER_API_KEY`；不要同时依赖旧 Token 访问。修改后重启服务。
+
 ## REST API
 
 ```text
@@ -74,6 +87,7 @@ MCP 地址：`http://spark:8090/mcp`，使用 Streamable HTTP、JSON response �
 - `list_media_workflows`
 - `create_media_job`
 - `get_media_job`
+- `get_media_asset`（校验当前用户的 asset，并返回短期签名 `preview_url`；不会返回 Base64）
 - `cancel_media_job`
 
 MCP 请求同样需要 Bearer Token 和 `x-tenant-id`。
@@ -88,3 +102,15 @@ MCP 请求同样需要 Bearer Token 和 `x-tenant-id`。
 输入资产会优先通过内部接口解析为 NAS 路径，并硬链接/复制到 ComfyUI input；输出会直接从 ComfyUI output 导入资产服务。如果没有配置共享目录，则自动通过 HTTP 下载、上传。
 
 注意：`ASSET_IMPORT_ROOTS` 必须包含 `COMFY_OUTPUT_ROOT`，否则输出导入会被拒绝。
+
+## Agent 媒体预览 URL
+
+MCP 不内联图片 Base64。配置可被 Agent/浏览器访问的固定地址与独立签名密钥：
+
+```dotenv
+VIDEO_SERVER_PUBLIC_BASE_URL=https://video.example.com
+ASSET_URL_SIGNING_SECRET=<至少 32 字符的独立随机密钥>
+ASSET_URL_TTL_SECONDS=86400
+```
+
+`get_media_job` 会为输出附加短期 `preview_url`，`get_media_asset` 可刷新链接。签名绑定 asset、tenant 和过期时间；签名资源端点不需要 Authorization Header。

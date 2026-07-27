@@ -1,8 +1,9 @@
+import { randomInt } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { config } from "./config.js";
-import type { CreateJobRequest, NodeBinding, ParameterBinding, WorkflowManifest } from "./types.js";
+import type { CreateJobRequest, NodeBinding, ParameterBinding, PresetBinding, WorkflowManifest } from "./types.js";
 
 const nodeBindingSchema = z.object({ nodeId: z.string().min(1), input: z.string().min(1) });
 const parameterBindingSchema = nodeBindingSchema.extend({
@@ -12,19 +13,37 @@ const parameterBindingSchema = nodeBindingSchema.extend({
   maximum: z.number().optional(),
   enum: z.array(z.union([z.string(), z.number(), z.boolean()])).optional()
 });
+const presetValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+const presetBindingSchema = z.object({
+  default: z.string().optional(),
+  options: z.record(z.object({
+    label: z.string().optional(),
+    description: z.string().optional(),
+    promptPrefix: z.string().optional(),
+    promptSuffix: z.string().optional(),
+    overrides: z.array(nodeBindingSchema.extend({ value: presetValueSchema }))
+  }))
+}).superRefine((preset, ctx) => {
+  if (preset.default !== undefined && preset.options[preset.default] === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "default must reference a preset option", path: ["default"] });
+  }
+});
 const manifestSchema = z.object({
   id: z.string().regex(/^[a-zA-Z0-9_.-]+$/),
   name: z.string().min(1),
   description: z.string().optional(),
-  kind: z.enum(["image_to_image", "image_to_video"]),
+  kind: z.enum(["text_to_image", "image_to_image", "image_to_video"]),
   enabled: z.boolean().default(true),
+  allowedTenants: z.array(z.string().regex(/^[a-zA-Z0-9_.-]{1,128}$/)).min(1),
   workflowFile: z.string().min(1),
   bindings: z.object({
     prompt: nodeBindingSchema.optional(),
     negativePrompt: nodeBindingSchema.optional(),
     assets: z.record(nodeBindingSchema.extend({ required: z.boolean().optional() })),
+    randomSeeds: z.array(nodeBindingSchema).default([]),
     parameters: z.record(parameterBindingSchema).default({})
-  })
+  }),
+  presets: z.record(presetBindingSchema).default({})
 });
 
 function setInput(workflow: Record<string, unknown>, binding: NodeBinding, value: unknown): void {
@@ -33,6 +52,11 @@ function setInput(workflow: Record<string, unknown>, binding: NodeBinding, value
   const inputs = (node as Record<string, unknown>).inputs;
   if (!inputs || typeof inputs !== "object") throw new Error(`Workflow node ${binding.nodeId} has no inputs`);
   (inputs as Record<string, unknown>)[binding.input] = value;
+}
+
+function randomSeed(): number {
+  const radix = 2 ** 24;
+  return randomInt(radix) * radix + randomInt(radix);
 }
 
 function validateParameter(name: string, value: unknown, binding: ParameterBinding): unknown {
@@ -48,6 +72,13 @@ function validateParameter(name: string, value: unknown, binding: ParameterBindi
   }
   if (binding.enum && !binding.enum.includes(value as never)) throw new Error(`Parameter ${name} is not allowed`);
   return value;
+}
+
+function selectedPreset(name: string, value: unknown, binding: PresetBinding) {
+  if (typeof value !== "string") throw new Error(`Preset ${name} must be a string`);
+  const option = binding.options[value];
+  if (!option) throw new Error(`Unknown ${name} preset: ${value}`);
+  return option;
 }
 
 export class WorkflowRegistry {
@@ -76,8 +107,8 @@ export class WorkflowRegistry {
     return [...this.manifests.values()];
   }
 
-  capabilities(): unknown[] {
-    return this.list().map((manifest) => ({
+  capabilities(tenantId: string): unknown[] {
+    return this.list().filter((manifest) => manifest.allowedTenants.includes(tenantId)).map((manifest) => ({
       id: manifest.id,
       name: manifest.name,
       description: manifest.description,
@@ -86,8 +117,8 @@ export class WorkflowRegistry {
         role,
         required: binding.required ?? false
       })),
-      parameters: Object.fromEntries(
-        Object.entries(manifest.bindings.parameters).map(([name, binding]) => [
+      parameters: Object.fromEntries([
+        ...Object.entries(manifest.bindings.parameters).map(([name, binding]) => [
           name,
           {
             type: binding.type,
@@ -96,19 +127,31 @@ export class WorkflowRegistry {
             maximum: binding.maximum,
             enum: binding.enum
           }
-        ])
-      )
+        ] as const),
+        ...Object.entries(manifest.presets).map(([name, preset]) => [
+          name,
+          {
+            type: "string",
+            default: preset.default,
+            enum: Object.keys(preset.options),
+            options: Object.fromEntries(Object.entries(preset.options).map(([id, option]) => [
+              id,
+              { label: option.label, description: option.description }
+            ]))
+          }
+        ] as const)
+      ])
     }));
   }
 
-  get(id: string): WorkflowManifest {
+  get(id: string, tenantId: string): WorkflowManifest {
     const manifest = this.manifests.get(id);
-    if (!manifest) throw new Error(`Unknown or disabled workflow: ${id}`);
+    if (!manifest || !manifest.allowedTenants.includes(tenantId)) throw new Error(`Unknown or disabled workflow: ${id}`);
     return manifest;
   }
 
-  validateRequest(request: CreateJobRequest): WorkflowManifest {
-    const manifest = this.get(request.workflow_id);
+  validateRequest(request: CreateJobRequest, tenantId: string): WorkflowManifest {
+    const manifest = this.get(request.workflow_id, tenantId);
     const roles = request.inputs.map((input) => input.role);
     if (new Set(roles).size !== roles.length) throw new Error("Each asset role may only be supplied once");
     const byRole = new Map(request.inputs.map((input) => [input.role, input]));
@@ -118,20 +161,34 @@ export class WorkflowRegistry {
     for (const input of request.inputs) {
       if (!manifest.bindings.assets[input.role]) throw new Error(`Workflow does not accept asset role: ${input.role}`);
     }
-    for (const parameter of Object.keys(request.parameters ?? {})) {
-      if (!manifest.bindings.parameters[parameter]) throw new Error(`Unknown workflow parameter: ${parameter}`);
+    for (const [parameter, value] of Object.entries(request.parameters ?? {})) {
+      const preset = manifest.presets[parameter];
+      if (!manifest.bindings.parameters[parameter] && !preset) {
+        throw new Error(`Unknown workflow parameter: ${parameter}`);
+      }
+      if (preset) selectedPreset(parameter, value, preset);
     }
     return manifest;
   }
 
   async buildWorkflow(
     request: CreateJobRequest,
-    preparedAssets: ReadonlyMap<string, string>
+    preparedAssets: ReadonlyMap<string, string>,
+    tenantId: string
   ): Promise<Record<string, unknown>> {
-    const manifest = this.validateRequest(request);
+    const manifest = this.validateRequest(request, tenantId);
     const filePath = this.assertWorkflowPath(manifest.workflowFile);
     const workflow = JSON.parse(await readFile(filePath, "utf8")) as Record<string, unknown>;
-    if (manifest.bindings.prompt) setInput(workflow, manifest.bindings.prompt, request.prompt);
+    let prompt = request.prompt;
+    const selectedPresets = Object.entries(manifest.presets).map(([name, binding]) => {
+      const requested = request.parameters?.[name] ?? binding.default;
+      return requested === undefined ? undefined : selectedPreset(name, requested, binding);
+    }).filter((preset) => preset !== undefined);
+    for (const preset of selectedPresets) {
+      prompt = `${preset.promptPrefix ?? ""}${prompt}${preset.promptSuffix ?? ""}`;
+      for (const override of preset.overrides) setInput(workflow, override, override.value);
+    }
+    if (manifest.bindings.prompt) setInput(workflow, manifest.bindings.prompt, prompt);
     if (manifest.bindings.negativePrompt && request.negative_prompt !== undefined) {
       setInput(workflow, manifest.bindings.negativePrompt, request.negative_prompt);
     }
@@ -140,10 +197,13 @@ export class WorkflowRegistry {
       if (!binding) throw new Error(`No binding for asset role: ${role}`);
       setInput(workflow, binding, value);
     }
-    const supplied = request.parameters ?? {};
-    for (const [name, binding] of Object.entries(manifest.bindings.parameters)) {
-      const value = supplied[name] ?? binding.default;
-      if (value !== undefined) setInput(workflow, binding, validateParameter(name, value, binding));
+    for (const binding of manifest.bindings.randomSeeds) {
+      setInput(workflow, binding, randomSeed());
+    }
+    for (const [name, value] of Object.entries(request.parameters ?? {})) {
+      const binding = manifest.bindings.parameters[name];
+      if (!binding) continue;
+      setInput(workflow, binding, validateParameter(name, value, binding));
     }
     return workflow;
   }

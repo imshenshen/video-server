@@ -46,7 +46,7 @@ export class JobManager extends EventEmitter {
   }
 
   async create(request: CreateJobRequest, tenantId: string): Promise<GenerationJob> {
-    this.registry.validateRequest(request);
+    this.registry.validateRequest(request, tenantId);
     const job = await this.store.create(request, tenantId);
     this.jobs.set(job.id, job);
     this.queue.push(job.id);
@@ -109,7 +109,7 @@ export class JobManager extends EventEmitter {
         const source = await this.assets.materialize(input.asset_id, job.tenantId, temporaryDirectory);
         prepared.set(input.role, await this.prepareComfyInput(source, input.role, job.id));
       }
-      const workflow = await this.registry.buildWorkflow(job.request, prepared);
+      const workflow = await this.registry.buildWorkflow(job.request, prepared, job.tenantId);
       if (this.isCancelled(job.id)) return;
       job.status = "running";
       await this.persist(job);

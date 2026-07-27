@@ -1,4 +1,4 @@
 interface:
   display_name: "ComfyUI Manifest Builder"
-  short_description: "Inspect API workflows and build safe manifests"
-  default_prompt: "Use $comfyui-manifest-builder to inspect this ComfyUI API workflow and create a validated video-server manifest."
+  short_description: "Build ACL-safe manifests with locked tuned settings"
+  default_prompt: "Use $comfyui-manifest-builder to convert this ComfyUI workflow if needed and create a validated manifest that preserves tuned settings and randomizes seed privately."

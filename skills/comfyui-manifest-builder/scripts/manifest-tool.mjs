@@ -110,7 +110,8 @@ function inspect(workflow, filename) {
           type: scalarType(value),
           currentValue: value,
           title,
-          classType
+          classType,
+          exposure: ["seed", "noise_seed"].includes(lower) ? "runtime_random" : "locked"
         });
       }
     }
@@ -170,10 +171,17 @@ function validateManifest(workflow, manifest, workflowFilename) {
   }
   if (typeof manifest.name !== "string" || manifest.name.length === 0) errors.push("name must be a non-empty string");
   if (manifest.description !== undefined && typeof manifest.description !== "string") errors.push("description must be a string");
-  if (!["image_to_image", "image_to_video"].includes(manifest.kind)) {
-    errors.push("kind must be image_to_image or image_to_video");
+  if (!["text_to_image", "image_to_image", "image_to_video"].includes(manifest.kind)) {
+    errors.push("kind must be text_to_image, image_to_image, or image_to_video");
   }
   if (typeof manifest.enabled !== "boolean") errors.push("enabled must be a boolean");
+  if (!Array.isArray(manifest.allowedTenants) || manifest.allowedTenants.length === 0) {
+    errors.push("allowedTenants must be a non-empty array");
+  } else if (manifest.allowedTenants.some((tenant) => typeof tenant !== "string" || !/^[a-zA-Z0-9_.-]{1,128}$/.test(tenant))) {
+    errors.push("allowedTenants contains an invalid tenant ID");
+  } else if (new Set(manifest.allowedTenants).size !== manifest.allowedTenants.length) {
+    errors.push("allowedTenants must not contain duplicates");
+  }
   if (typeof manifest.workflowFile !== "string" || manifest.workflowFile.length === 0) {
     errors.push("workflowFile must be a non-empty relative path");
   } else {
@@ -208,6 +216,19 @@ function validateManifest(workflow, manifest, workflowFilename) {
       bindingTargets.push([`bindings.assets.${role}`, binding]);
       if (isObject(binding) && binding.required !== undefined && typeof binding.required !== "boolean") {
         errors.push(`bindings.assets.${role}.required must be a boolean`);
+      }
+    }
+  }
+
+  if (!Array.isArray(manifest.bindings.randomSeeds)) {
+    errors.push("bindings.randomSeeds must be an array");
+  } else {
+    for (const [index, binding] of manifest.bindings.randomSeeds.entries()) {
+      const label = "bindings.randomSeeds[" + index + "]";
+      validateBinding(binding, label, workflow, errors);
+      bindingTargets.push([label, binding]);
+      if (isObject(binding) && !/(^|_)seed$/i.test(binding.input)) {
+        errors.push(label + ".input must identify a seed input");
       }
     }
   }
@@ -251,6 +272,40 @@ function validateManifest(workflow, manifest, workflowFilename) {
           errors.push(`${label}.enum contains a value that does not match type ${binding.type}`);
         } else if (binding.default !== undefined && !binding.enum.includes(binding.default)) {
           errors.push(`${label}.default is not included in enum`);
+        }
+      }
+    }
+  }
+
+  if (manifest.presets !== undefined && !isObject(manifest.presets)) {
+    errors.push("presets must be an object");
+  } else {
+    for (const [presetName, preset] of Object.entries(manifest.presets ?? {})) {
+      const presetLabel = `presets.${presetName}`;
+      if (!isObject(preset) || !isObject(preset.options) || Object.keys(preset.options).length === 0) {
+        errors.push(`${presetLabel}.options must be a non-empty object`);
+        continue;
+      }
+      if (preset.default !== undefined && !(preset.default in preset.options)) {
+        errors.push(`${presetLabel}.default must reference an option`);
+      }
+      for (const [optionName, option] of Object.entries(preset.options)) {
+        const optionLabel = `${presetLabel}.options.${optionName}`;
+        if (!isObject(option) || !Array.isArray(option.overrides)) {
+          errors.push(`${optionLabel}.overrides must be an array`);
+          continue;
+        }
+        for (const [index, override] of option.overrides.entries()) {
+          const label = `${optionLabel}.overrides[${index}]`;
+          validateBinding(override, label, workflow, errors);
+          if (!isObject(override) || !["string", "number", "boolean"].includes(typeof override.value)) {
+            errors.push(`${label}.value must be a string, number, or boolean`);
+          }
+        }
+        for (const field of ["label", "description", "promptPrefix", "promptSuffix"]) {
+          if (option[field] !== undefined && typeof option[field] !== "string") {
+            errors.push(`${optionLabel}.${field} must be a string`);
+          }
         }
       }
     }

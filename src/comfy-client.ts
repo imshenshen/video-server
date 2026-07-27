@@ -4,6 +4,7 @@ import axios from "axios";
 import FormData from "form-data";
 import WebSocket from "ws";
 import { config } from "./config.js";
+import { upstreamRequest } from "./upstream-error.js";
 import type { ComfyOutputFile } from "./types.js";
 
 interface ComfyChannel {
@@ -56,10 +57,10 @@ export class ComfyClient {
     form.append("type", "input");
     form.append("subfolder", `jobs/${jobId}`);
     form.append("overwrite", "false");
-    const response = await axios.post(`${config.comfyBaseUrl}/upload/image`, form, {
+    const response = await upstreamRequest("ComfyUI", "upload input", () => axios.post(`${config.comfyBaseUrl}/upload/image`, form, {
       headers: form.getHeaders(),
       maxBodyLength: Infinity
-    });
+    }));
     const name = String(response.data.name ?? response.data.filename ?? "");
     const subfolder = String(response.data.subfolder ?? `jobs/${jobId}`);
     if (!name) throw new Error("ComfyUI upload response did not include a filename");
@@ -69,10 +70,10 @@ export class ComfyClient {
   async runWorkflow(workflow: Record<string, unknown>, callbacks: RunCallbacks): Promise<ComfyOutputFile[]> {
     const channel = await this.openChannel();
     try {
-      const response = await axios.post(`${config.comfyBaseUrl}/prompt`, {
+      const response = await upstreamRequest("ComfyUI", "queue workflow", () => axios.post(`${config.comfyBaseUrl}/prompt`, {
         prompt: workflow,
         client_id: channel.clientId
-      });
+      }));
       const promptId = String(response.data.prompt_id ?? "");
       if (!promptId) {
         throw new Error(`ComfyUI rejected workflow: ${JSON.stringify(response.data.node_errors ?? response.data)}`);
@@ -96,7 +97,9 @@ export class ComfyClient {
       subfolder: file.subfolder,
       type: file.type
     });
-    const response = await axios.get(`${config.comfyBaseUrl}/view?${query.toString()}`, { responseType: "stream" });
+    const response = await upstreamRequest("ComfyUI", "download output", () =>
+      axios.get(`${config.comfyBaseUrl}/view?${query.toString()}`, { responseType: "stream" })
+    );
     const contentType = typeof response.headers["content-type"] === "string" ? response.headers["content-type"] : undefined;
     return contentType ? { stream: response.data, mimeType: contentType } : { stream: response.data };
   }
@@ -162,7 +165,9 @@ export class ComfyClient {
   }
 
   private async getOutputs(promptId: string): Promise<ComfyOutputFile[]> {
-    const response = await axios.get(`${config.comfyBaseUrl}/history/${encodeURIComponent(promptId)}`);
+    const response = await upstreamRequest("ComfyUI", "read history", () =>
+      axios.get(`${config.comfyBaseUrl}/history/${encodeURIComponent(promptId)}`)
+    );
     const history = response.data?.[promptId];
     const outputs = collectOutputs(history);
     if (outputs.length === 0) throw new Error("ComfyUI completed without downloadable outputs");

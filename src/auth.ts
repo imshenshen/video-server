@@ -2,25 +2,59 @@ import { timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import { config } from "./config.js";
 
-function authorized(req: Request): boolean {
-  if (!config.apiKey) return true;
+const authenticatedTenants = new WeakMap<Request, string>();
+
+function validTenant(value: string): string {
+  if (!/^[a-zA-Z0-9_.-]{1,128}$/.test(value)) throw new Error("Invalid tenant ID");
+  return value;
+}
+
+function bearerToken(req: Request): string | undefined {
   const header = req.header("authorization");
-  if (!header?.startsWith("Bearer ")) return false;
-  const actual = Buffer.from(header.slice(7));
-  const expected = Buffer.from(config.apiKey);
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
+  return header?.startsWith("Bearer ") ? header.slice(7) : undefined;
+}
+
+function tokenEquals(actual: string | undefined, expected: string): boolean {
+  if (actual === undefined) return false;
+  const actualBytes = Buffer.from(actual);
+  const expectedBytes = Buffer.from(expected);
+  return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
+}
+
+export function resolveTenantForCredentials(
+  token: string | undefined,
+  requestedTenant: string | undefined,
+  users = config.apiUsers,
+  apiKey = config.apiKey
+): string | undefined {
+  if (users.length > 0) {
+    for (const user of users) if (tokenEquals(token, user.token)) return user.tenantId;
+    return undefined;
+  }
+  if (apiKey && !tokenEquals(token, apiKey)) return undefined;
+  return validTenant(requestedTenant?.trim() || "default");
+}
+
+function resolveTenant(req: Request): string | undefined {
+  return resolveTenantForCredentials(bearerToken(req), req.header("x-tenant-id"));
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (authorized(req)) {
+  try {
+    const tenant = resolveTenant(req);
+    if (!tenant) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    authenticatedTenants.set(req, tenant);
     next();
-    return;
+  } catch (error) {
+    next(error);
   }
-  res.status(401).json({ error: "Unauthorized" });
 }
 
 export function tenantId(req: Request): string {
-  const value = req.header("x-tenant-id")?.trim() || "default";
-  if (!/^[a-zA-Z0-9_.-]{1,128}$/.test(value)) throw new Error("Invalid x-tenant-id");
-  return value;
+  const tenant = authenticatedTenants.get(req);
+  if (!tenant) throw new Error("Missing authentication context");
+  return tenant;
 }

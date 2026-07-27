@@ -1,4 +1,4 @@
-export type WorkflowKind = "image_to_image" | "image_to_video";
+export type WorkflowKind = "text_to_image" | "image_to_image" | "image_to_video";
 export type JobStatus =
   | "queued"
   | "preparing"
@@ -24,19 +24,39 @@ export interface ParameterBinding extends NodeBinding {
   enum?: Array<string | number | boolean>;
 }
 
+export interface PresetOverride extends NodeBinding {
+  value: string | number | boolean;
+}
+
+export interface PresetOption {
+  label?: string;
+  description?: string;
+  promptPrefix?: string;
+  promptSuffix?: string;
+  overrides: PresetOverride[];
+}
+
+export interface PresetBinding {
+  default?: string;
+  options: Record<string, PresetOption>;
+}
+
 export interface WorkflowManifest {
   id: string;
   name: string;
   description?: string;
   kind: WorkflowKind;
   enabled: boolean;
+  allowedTenants: string[];
   workflowFile: string;
   bindings: {
     prompt?: NodeBinding;
     negativePrompt?: NodeBinding;
     assets: Record<string, AssetBinding>;
+    randomSeeds: NodeBinding[];
     parameters: Record<string, ParameterBinding>;
   };
+  presets: Record<string, PresetBinding>;
 }
 
 export interface JobInput {

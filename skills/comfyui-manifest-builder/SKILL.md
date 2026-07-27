@@ -1,76 +1,88 @@
 ---
 name: comfyui-manifest-builder
-description: Inspect a ComfyUI API Format workflow and interactively create or repair a validated video-server *.manifest.json. Use when registering image-to-image or image-to-video workflows, mapping prompts, input images, videos, seeds, dimensions, denoise values, or other approved parameters to ComfyUI node inputs, or diagnosing why a workflow is absent from video-server /workflows.
+description: Convert ComfyUI UI workflows to API Format when needed, inspect API workflows, and create or repair validated video-server *.manifest.json files with tenant ACLs, locked tuned settings, and private runtime-random seeds. Use when registering image-to-image, text-to-image, or image-to-video workflows; mapping prompts or assets; preserving tuned ComfyUI parameters; configuring random seeds; or diagnosing missing workflows.
 ---
 
 # ComfyUI Manifest Builder
 
-Create a reviewed video-server manifest from a ComfyUI API Format JSON. Treat automatic matches as
-candidates only; require confirmation before writing because custom nodes and duplicated text encoders
-cannot always be distinguished reliably.
+Create a reviewed API workflow and video-server manifest. Treat automatic matches as candidates only;
+custom nodes and duplicated encoders require review. Treat the API workflow as the source of truth for tuned settings.
 
-## Inspect
+## Convert UI Format
 
-Resolve the skill directory from this `SKILL.md`, then run:
+Run the inspector first:
+
+```bash
+node "<skill-dir>/scripts/manifest-tool.mjs" inspect "<workflow.json>"
+```
+
+When `format` is `ui`, automatically convert to a temporary API file using the running ComfyUI schemas:
+
+```bash
+node "<skill-dir>/scripts/ui-to-api.mjs" \
+  "<workflow.json>" "/tmp/<id>.api.json" \
+  --comfy-url "${COMFYUI_BASE_URL:-http://127.0.0.1:8188}"
+```
+
+Never overwrite the UI workflow. Review every warning and the draft API graph. The converter removes
+muted/bypassed nodes, reroutes unambiguous bypass connections, and refuses ambiguous connected nodes.
+If a warning reports a `randomize` seed control, map that API seed input under `bindings.randomSeeds`.
+
+## Preserve tuned settings
+
+Keep sampler, scheduler, steps, CFG, denoise/strength, batch size, dimensions, frame count/rate, and
+model settings in the API workflow. Do not copy them into public `bindings.parameters` by default.
+Inspector candidates marked `locked` are internal settings, not an invitation to expose them.
+
+Use these rules:
+
+- Make `bindings.parameters` empty unless the user explicitly approves a semantic override.
+- Never expose `seed` or `noise_seed`. Put randomized seed inputs in `bindings.randomSeeds`.
+- Prefer named semantic presets over raw width/height or sampler controls when an override is explicitly approved.
+- Omit parameter `default` values. An omitted request must leave the API workflow unchanged.
+- Reject agent convenience as approval. “The model may want to tune it” is not user approval.
+
+## Inspect API Format
+
+Run:
 
 ```bash
 node "<skill-dir>/scripts/manifest-tool.mjs" inspect "<workflow.api.json>"
 ```
 
-Use the JSON report to verify:
-
-- `format` is `api`; stop and ask for **Export (API Format)** when it is `ui`.
-- Prompt and negative-prompt nodes.
-- Every input image/video node and a meaningful unique role for each one.
-- Only parameters the chat Agent should be allowed to change.
-- Output nodes exist. Outputs do not need manifest bindings because video-server collects them from
-  ComfyUI history.
-
-Do not infer positive versus negative prompt from two otherwise identical encoders. Prefer node titles,
-connections visible to the user, or explicit confirmation.
+Verify prompt polarity, every asset role, output nodes, model/CLIP/LoRA connections, tuned settings,
+and each random seed node. API format cannot serialize the UI `control_after_generate=randomize` behavior;
+`bindings.randomSeeds` restores it at video-server runtime.
 
 ## Confirm
 
-Present a compact proposed mapping and ask the user to confirm or correct it. Collect:
+Before writing, present:
 
-1. Stable `id`, display `name`, `kind`, and `workflowFile` relative to `WORKFLOW_DIR`.
-2. Optional prompt and negative-prompt bindings.
-3. Asset roles and whether each is required.
-4. Parameter types, bounds, enum values, and defaults.
-5. Whether the manifest should be enabled.
+1. Stable ID, name, kind, and `workflowFile` relative to `WORKFLOW_DIR`.
+2. Prompt and optional negative-prompt bindings.
+3. Asset roles and required flags.
+4. Private randomized seed bindings.
+5. Public parameters, normally empty; explain every exception.
+6. Non-empty `allowedTenants`, enabled state, and API destination.
 
-For multiple images, use distinct roles such as `source_image`, `reference_image`, or `end_frame`.
-Do not expose model paths, arbitrary filenames, or node inputs that the caller does not need.
-
-Read [references/manifest-schema.md](references/manifest-schema.md) while constructing the JSON.
+Read [references/manifest-schema.md](references/manifest-schema.md) while constructing JSON.
 
 ## Validate and write
 
-Create the proposed manifest in a temporary file first. Validate it against the exact API Workflow:
+Create drafts in `/tmp`, then validate the exact pair:
 
 ```bash
 node "<skill-dir>/scripts/manifest-tool.mjs" validate \
   "<workflow.api.json>" "<draft.manifest.json>"
 ```
 
-Show the final mapping and destination. Write only after the user confirms:
+After confirmation, write with:
 
 ```bash
 node "<skill-dir>/scripts/manifest-tool.mjs" write \
   "<workflow.api.json>" "<draft.manifest.json>" "<MANIFEST_DIR>/<id>.manifest.json"
 ```
 
-The command refuses to overwrite an existing file. Use `--force` only after explicit overwrite
-confirmation. Never modify the ComfyUI API Workflow itself.
-
-After writing, advise restarting video-server and checking registration:
-
-```bash
-pm2 restart video-server --update-env
-curl "$VIDEO_URL/workflows" \
-  -H "Authorization: Bearer $VIDEO_TOKEN" \
-  -H "x-tenant-id: $TENANT_ID"
-```
-
-If startup or task creation fails, run `validate` again against the deployed files and report the exact
-missing node or input.
+The command refuses overwrite. Use `--force` only after explicit overwrite confirmation. Restart
+video-server and verify REST `/workflows` plus MCP `list_media_workflows`; confirm locked settings are
+absent and run two builds to confirm seeds differ without changing the API file.

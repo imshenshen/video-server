@@ -15,13 +15,14 @@ test("manifest skill inspector reports ambiguous prompt nodes", async () => {
   const { stdout } = await run(process.execPath, [tool, "inspect", workflow]);
   const report = JSON.parse(stdout) as {
     format: string;
-    candidates: { prompts: Array<{ hint: string }>; assets: unknown[]; parameters: unknown[] };
+    candidates: { prompts: Array<{ hint: string }>; assets: unknown[]; parameters: Array<{ exposure: string }> };
   };
 
   assert.equal(report.format, "api");
   assert.deepEqual(report.candidates.prompts.map((candidate) => candidate.hint), ["ambiguous", "ambiguous"]);
   assert.equal(report.candidates.assets.length, 1);
   assert.equal(report.candidates.parameters.length, 1);
+  assert.equal(report.candidates.parameters[0]?.exposure, "runtime_random");
 });
 
 test("manifest skill validator accepts the registered example", async () => {

@@ -33,56 +33,30 @@ MANIFEST_DIR=/srv/video-server-manifests
   "description": "使用一张图片进行编辑",
   "kind": "image_to_image",
   "enabled": true,
+  "allowedTenants": ["default"],
   "workflowFile": "flux-img2img.api.json",
   "bindings": {
     "prompt": { "nodeId": "25", "input": "text" },
-    "negativePrompt": { "nodeId": "26", "input": "text" },
     "assets": {
       "source_image": { "nodeId": "12", "input": "image", "required": true }
     },
-    "parameters": {
-      "seed": {
-        "nodeId": "30",
-        "input": "seed",
-        "type": "integer",
-        "minimum": 0,
-        "maximum": 2147483647,
-        "default": 1
-      },
-      "denoise": {
-        "nodeId": "30",
-        "input": "denoise",
-        "type": "number",
-        "minimum": 0,
-        "maximum": 1,
-        "default": 0.7
-      }
-    }
+    "randomSeeds": [
+      { "nodeId": "30", "input": "seed" }
+    ],
+    "parameters": {}
   }
 }
 ```
 
 ## 字段
 
-- `id`：REST/MCP 调用使用的稳定工作流 ID，只允许字母、数字、点、下划线和连字符。
-- `name`、`description`：返回给 Agent 的名称和说明。
-- `kind`：`image_to_image` 或 `image_to_video`。
-- `enabled`：为 `false` 时不注册该工作流。
-- `workflowFile`：API Format Workflow 文件名或 `WORKFLOW_DIR` 内的相对路径。
-- `bindings.prompt`、`bindings.negativePrompt`：可选文本输入映射。
-- `bindings.assets`：逻辑媒体角色到 ComfyUI 节点输入的映射；角色名由部署者定义。
-- `bindings.parameters`：允许调用者修改的参数白名单。
+- `bindings.randomSeeds`：不向 Agent 暴露；每次构建时由服务端写入随机安全整数。
+- `bindings.parameters`：允许调用者修改的显式白名单，默认应为空。
+- API workflow 是 sampler、steps、CFG、denoise、尺寸、batch 等调优值的唯一默认来源。
+- 未传入的公开参数不会修改 API workflow；未声明参数会被拒绝。
+- 只有用户明确批准时才开放语义化 preset，禁止默认公开 seed 或底层采样参数。
 
-每个绑定使用 `nodeId` 与 `input` 定位：
-
-```json
-{ "nodeId": "25", "input": "text" }
-```
-
-表示把值写入 API Workflow 的 `workflow["25"].inputs.text`。
-
-参数支持 `integer`、`number`、`string`、`boolean`，可以使用 `default`、`minimum`、
-`maximum` 和 `enum` 约束输入。未在 manifest 中声明的参数和媒体角色会被拒绝。
+每个绑定使用 `nodeId` 与 `input` 定位 API workflow 节点输入。
 
 ## 运行过程
 
@@ -120,3 +94,22 @@ jq -r '
 客户端不能提交任意 Workflow JSON，只能选择已注册的 manifest，并修改 manifest 明确开放的字段。
 这样可以避免 Agent 任意选择模型、调用危险自定义节点或读写未授权路径。manifest 应由可信部署者
 审核和发布，不应允许普通聊天用户上传。
+
+## Workflow 访问权限
+
+每个启用的 manifest 必须设置非空的 `allowedTenants` 白名单：
+
+```json
+{
+  "id": "klein-edit-1",
+  "enabled": true,
+  "allowedTenants": ["default", "ariel", "joy", "ming"]
+}
+```
+
+只有名单内的 Tenant 才能在 REST `/workflows` 或 MCP `list_media_workflows` 中看到它，
+也只有名单内的 Tenant 能创建和执行对应任务。未授权访问统一返回未知工作流，避免泄露 ID。
+修改权限后，运行 manifest skill 的 `validate`，再重启 `video-server`。
+
+注意：使用 `VIDEO_SERVER_USERS` 时，这里填写服务端映射后的 Tenant ID。当前 shenshen 为了继承
+旧数据映射到 `default`，因此应填写 `default`；其他用户使用 `ariel`、`joy`、`ming`。
