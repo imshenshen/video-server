@@ -159,6 +159,9 @@ export class WorkflowRegistry {
       if (binding.required && !byRole.has(role)) throw new Error(`Workflow requires asset role: ${role}`);
     }
     for (const input of request.inputs) {
+      if (Boolean(input.asset_id) === Boolean(input.media_ref)) {
+        throw new Error(`Workflow input ${input.role} must provide exactly one media reference`);
+      }
       if (!manifest.bindings.assets[input.role]) throw new Error(`Workflow does not accept asset role: ${input.role}`);
     }
     for (const [parameter, value] of Object.entries(request.parameters ?? {})) {

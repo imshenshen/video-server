@@ -106,7 +106,9 @@ export class JobManager extends EventEmitter {
       await mkdir(temporaryDirectory, { recursive: true });
       const prepared = new Map<string, string>();
       for (const input of job.request.inputs) {
-        const source = await this.assets.materialize(input.asset_id, job.tenantId, temporaryDirectory);
+        const mediaRef = input.media_ref ?? input.asset_id;
+        if (!mediaRef) throw new Error(`Missing media reference for role ${input.role}`);
+        const source = await this.assets.materialize(mediaRef, job.tenantId, temporaryDirectory);
         prepared.set(input.role, await this.prepareComfyInput(source, input.role, job.id));
       }
       const workflow = await this.registry.buildWorkflow(job.request, prepared, job.tenantId);
@@ -125,7 +127,7 @@ export class JobManager extends EventEmitter {
         }
       });
       if (this.isCancelled(job.id)) return;
-      for (const output of outputs) job.outputs.push(await this.registerOutput(output, job.tenantId));
+      for (const output of outputs) job.outputs.push(await this.registerOutput(output, job.tenantId, job.id));
       job.status = "completed";
       job.progress = 1;
       delete job.currentNode;
@@ -157,13 +159,13 @@ export class JobManager extends EventEmitter {
     return relative;
   }
 
-  private async registerOutput(output: ComfyOutputFile, tenantId: string) {
+  private async registerOutput(output: ComfyOutputFile, tenantId: string, jobId: string) {
     if (config.comfyOutputRoot) {
       const source = assertWithin(config.comfyOutputRoot, path.join(config.comfyOutputRoot, output.subfolder, output.filename));
-      return this.assets.importLocal(source, output.filename, tenantId);
+      return this.assets.importLocal(source, output.filename, tenantId, jobId);
     }
     const downloaded = await this.comfy.downloadOutput(output);
-    return this.assets.uploadStream(downloaded.stream, output.filename, downloaded.mimeType, tenantId);
+    return this.assets.uploadStream(downloaded.stream, output.filename, downloaded.mimeType, tenantId, jobId);
   }
 
   private async persist(job: GenerationJob): Promise<void> {

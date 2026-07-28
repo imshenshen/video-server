@@ -60,7 +60,8 @@ export interface WorkflowManifest {
 }
 
 export interface JobInput {
-  asset_id: string;
+  asset_id?: string;
+  media_ref?: string;
   role: string;
 }
 
@@ -73,11 +74,14 @@ export interface CreateJobRequest {
 }
 
 export interface OutputAsset {
-  asset_id: string;
+  asset_id?: string;
+  resource_id?: string;
   uri: string;
   mime_type: string;
   original_name: string;
   size: number;
+  sha256?: string;
+  content_url?: string;
 }
 
 export interface GenerationJob {

@@ -25,6 +25,12 @@ function integer(name: string, fallback: number): number {
   return parsed;
 }
 
+function mediaResourceBackend(value: string | undefined): "llm_gateway" | "runclave" {
+  const normalized = String(value ?? "llm_gateway").trim().toLowerCase();
+  if (normalized === "llm_gateway" || normalized === "runclave") return normalized;
+  throw new Error("MEDIA_RESOURCE_BACKEND must be llm_gateway or runclave");
+}
+
 export const config = {
   host: process.env.HOST ?? "0.0.0.0",
   port: integer("PORT", 8090),
@@ -37,9 +43,16 @@ export const config = {
   manifestDir: path.resolve(process.env.MANIFEST_DIR ?? process.env.WORKFLOW_DIR ?? "./workflows"),
   jobDataDir: path.resolve(process.env.JOB_DATA_DIR ?? "./data/jobs"),
   jobTempDir: path.resolve(process.env.JOB_TEMP_DIR ?? "./tmp/jobs"),
+  mediaResourceBackend: mediaResourceBackend(process.env.MEDIA_RESOURCE_BACKEND),
   assetServiceUrl: (process.env.ASSET_SERVICE_URL ?? "http://127.0.0.1:8080").replace(/\/$/, ""),
   assetApiKey: process.env.ASSET_SERVICE_API_KEY,
   assetInternalApiKey: process.env.ASSET_INTERNAL_API_KEY,
+  runclaveResourceBaseUrl: (process.env.RUNCLAVE_RESOURCE_BASE_URL ?? "http://127.0.0.1:3001").replace(/\/$/, ""),
+  runclaveResourceApiToken: process.env.RUNCLAVE_RESOURCE_API_TOKEN,
+  runclaveSharedProviderId: process.env.RUNCLAVE_SHARED_PROVIDER_ID ?? "nas_main",
+  runclaveSharedRoot: process.env.RUNCLAVE_SHARED_ROOT
+    ? path.resolve(process.env.RUNCLAVE_SHARED_ROOT)
+    : undefined,
   comfyInputRoot: process.env.COMFY_INPUT_ROOT ? path.resolve(process.env.COMFY_INPUT_ROOT) : undefined,
   comfyOutputRoot: process.env.COMFY_OUTPUT_ROOT ? path.resolve(process.env.COMFY_OUTPUT_ROOT) : undefined,
   videoServerPublicBaseUrl: process.env.VIDEO_SERVER_PUBLIC_BASE_URL?.replace(/\/$/, ""),

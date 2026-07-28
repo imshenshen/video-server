@@ -12,7 +12,13 @@ import { WorkflowRegistry } from "./workflow-registry.js";
 
 const createJobSchema = z.object({
   workflow_id: z.string().min(1),
-  inputs: z.array(z.object({ asset_id: z.string().min(1), role: z.string().min(1) })),
+  inputs: z.array(z.object({
+    asset_id: z.string().min(1).optional(),
+    media_ref: z.string().min(1).optional(),
+    role: z.string().min(1)
+  }).refine((value) => Boolean(value.asset_id) !== Boolean(value.media_ref), {
+    message: "Provide exactly one of asset_id or media_ref"
+  })),
   prompt: z.string(),
   negative_prompt: z.string().optional(),
   parameters: z.record(z.unknown()).optional()
@@ -74,7 +80,7 @@ export async function createApp(): Promise<{ app: express.Express; manager: JobM
   app.get("/workflows", (req, res) => res.json({ workflows: registry.capabilities(tenantId(req)) }));
   app.get("/assets/:id/content", async (req, res, next) => {
     try {
-      const assetId = z.string().regex(/^asset_[a-f0-9]{32}$/).parse(String(req.params.id));
+      const assetId = z.string().regex(/^(?:asset_[a-f0-9]{32}|res_[A-Za-z0-9-]+)$/).parse(String(req.params.id));
       const content = await assetClient.downloadContent(assetId, tenantId(req));
       res.setHeader("content-type", content.contentType);
       res.setHeader("content-disposition", "inline");

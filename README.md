@@ -72,7 +72,7 @@ curl -X POST http://spark:8090/jobs \
   -H 'Content-Type: application/json' \
   -d '{
     "workflow_id": "wan-i2v-v1",
-    "inputs": [{"asset_id":"asset_xxx","role":"start_frame"}],
+    "inputs": [{"media_ref":"runclave-resource://res_xxx","role":"start_frame"}],
     "prompt": "人物自然向前走",
     "parameters": {"seed": 123}
   }'
@@ -87,21 +87,35 @@ MCP 地址：`http://spark:8090/mcp`，使用 Streamable HTTP、JSON response �
 - `list_media_workflows`
 - `create_media_job`
 - `get_media_job`
-- `get_media_asset`（校验当前用户的 asset，并返回短期签名 `preview_url`；不会返回 Base64）
+- `get_media_asset`（校验媒体引用并返回元数据；不会返回 Base64）
 - `cancel_media_job`
 
 MCP 请求同样需要 Bearer Token 和 `x-tenant-id`。
 
-## NAS 快路径
+## Runclave 资源后端（推荐）
 
-同时配置：
+当上传和对话资源由 Runclave 管理时：
 
-- `llm-gateway`: `INTERNAL_API_KEY`、`ASSET_IMPORT_ROOTS`
-- `video-server`: `ASSET_INTERNAL_API_KEY`、`COMFY_INPUT_ROOT`、`COMFY_OUTPUT_ROOT`
+```dotenv
+MEDIA_RESOURCE_BACKEND=runclave
+RUNCLAVE_RESOURCE_BASE_URL=http://macmini.shenshen:3001
+RUNCLAVE_RESOURCE_API_TOKEN=
+RUNCLAVE_SHARED_PROVIDER_ID=nas_main
+RUNCLAVE_SHARED_ROOT=/Volumes/media/runclave
+```
 
-输入资产会优先通过内部接口解析为 NAS 路径，并硬链接/复制到 ComfyUI input；输出会直接从 ComfyUI output 导入资产服务。如果没有配置共享目录，则自动通过 HTTP 下载、上传。
+输入使用 `runclave-resource://res_xxx`。provider 与共享目录匹配时，video-server 直接从 NAS
+读取；否则通过 Runclave API 下载。生成结果先写入同一共享目录的临时区，再调用 Runclave
+注册接口归档为 `objects/<sha256 前缀>/<sha256>.<ext>`，注册完成即删除临时文件。相同内容会
+复用同一个 Resource 和物理对象，video job、Control Session、消息分别通过绑定引用它。
 
-注意：`ASSET_IMPORT_ROOTS` 必须包含 `COMFY_OUTPUT_ROOT`，否则输出导入会被拒绝。
+Runclave 开启 Desktop token 鉴权时填写 `RUNCLAVE_RESOURCE_API_TOKEN`；否则可留空。
+
+## llm-gateway 旧资产后端
+
+设置 `MEDIA_RESOURCE_BACKEND=llm_gateway` 后，原有 `ASSET_SERVICE_URL`、
+`ASSET_SERVICE_API_KEY`、`ASSET_INTERNAL_API_KEY` 与 `ASSET_IMPORT_ROOTS` 流程保持可用。
+这用于尚未迁移到 Runclave ResourceRef 的独立客户端。
 
 ## Agent 媒体预览 URL
 
@@ -113,4 +127,5 @@ ASSET_URL_SIGNING_SECRET=<至少 32 字符的独立随机密钥>
 ASSET_URL_TTL_SECONDS=86400
 ```
 
-`get_media_job` 会为输出附加短期 `preview_url`，`get_media_asset` 可刷新链接。签名绑定 asset、tenant 和过期时间；签名资源端点不需要 Authorization Header。
+该签名 URL 仅用于 `llm_gateway` 兼容模式。Runclave 模式返回持久
+`runclave-resource://res_xxx`，由 Runclave 在当前消息上下文中绑定并提供受控预览地址。

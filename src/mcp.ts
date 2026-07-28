@@ -3,14 +3,23 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { AssetClient } from "./asset-client.js";
+import { config } from "./config.js";
 import type { JobManager } from "./job-manager.js";
 import { canCreateSignedAssetLinks, createSignedAssetLink } from "./signed-asset-url.js";
 import type { GenerationJob } from "./types.js";
 import type { WorkflowRegistry } from "./workflow-registry.js";
 
+const mediaInputSchema = z.object({
+  asset_id: z.string().min(1).optional(),
+  media_ref: z.string().min(1).optional(),
+  role: z.string().min(1)
+}).refine((value) => Boolean(value.asset_id) !== Boolean(value.media_ref), {
+  message: "Provide exactly one of asset_id or media_ref"
+});
+
 const inputSchema = {
   workflow_id: z.string().describe("Workflow ID returned by list_media_workflows"),
-  inputs: z.array(z.object({ asset_id: z.string(), role: z.string() })),
+  inputs: z.array(mediaInputSchema),
   prompt: z.string(),
   negative_prompt: z.string().optional(),
   parameters: z.record(z.unknown()).optional().describe("Only include parameters explicitly exposed by the selected workflow and explicitly requested by the user")
@@ -20,14 +29,13 @@ function text(value: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value) }] };
 }
 
-function jobWithPreviewUrls(job: GenerationJob, tenantId: string): GenerationJob | (GenerationJob & { outputs: Array<GenerationJob["outputs"][number] & { preview_url: string; expires_at: string }> }) {
+function jobWithPreviewUrls(job: GenerationJob, tenantId: string) {
   if (!canCreateSignedAssetLinks()) return job;
   return {
     ...job,
-    outputs: job.outputs.map((output) => ({
-      ...output,
-      ...createSignedAssetLink(output.asset_id, tenantId)
-    }))
+    outputs: job.outputs.map((output) => output.asset_id
+      ? { ...output, ...createSignedAssetLink(output.asset_id, tenantId) }
+      : output)
   };
 }
 
@@ -37,7 +45,7 @@ function createServer(manager: JobManager, registry: WorkflowRegistry, tenantId:
     { name: "spark-video-server", version: "0.1.0" },
     {
       instructions:
-        "Call list_media_workflows before creating a job. Use only asset IDs supplied by the user. Generation is asynchronous; create_media_job returns a job ID immediately. Completed jobs include short-lived preview_url values when configured. Use those URLs in Markdown to display media. Call get_media_asset only to verify access or refresh an expired URL. Never use asset:// URIs and never request or embed asset data as base64."
+        "Call list_media_workflows before creating a job. Use only media references supplied by the user. Pass runclave-resource:// references as media_ref and legacy llm-gateway asset IDs as asset_id. Generation is asynchronous; create_media_job returns a job ID immediately. Completed jobs return durable resource URIs. Never request or embed asset data as base64."
     }
   );
   server.registerTool(
@@ -49,7 +57,7 @@ function createServer(manager: JobManager, registry: WorkflowRegistry, tenantId:
     "create_media_job",
     {
       title: "Create media generation job",
-      description: "Start an asynchronous ComfyUI workflow using existing asset IDs",
+      description: "Start an asynchronous ComfyUI workflow using existing media references",
       inputSchema
     },
     async (args) => text(await manager.create(args, tenantId))
@@ -58,7 +66,7 @@ function createServer(manager: JobManager, registry: WorkflowRegistry, tenantId:
     "get_media_job",
     {
       title: "Get media job",
-      description: "Get generation status, output asset IDs, and short-lived preview URLs",
+      description: "Get generation status and output media references",
       inputSchema: { job_id: z.string() }
     },
     async ({ job_id }) => text(jobWithPreviewUrls(manager.get(job_id, tenantId), tenantId))
@@ -67,27 +75,40 @@ function createServer(manager: JobManager, registry: WorkflowRegistry, tenantId:
     "get_media_asset",
     {
       title: "Get media preview URL",
-      description: "Verify access to an asset and return a short-lived signed URL. Returns no base64 or binary data.",
-      inputSchema: { asset_id: z.string() }
+      description: "Verify access to a media resource and return metadata without base64 or binary data.",
+      inputSchema: {
+        asset_id: z.string().min(1).optional(),
+        media_ref: z.string().min(1).optional()
+      }
     },
-    async ({ asset_id }) => {
-      const link = createSignedAssetLink(asset_id, tenantId);
-      const metadata = await assets.getMetadata(asset_id, tenantId);
+    async ({ asset_id, media_ref }) => {
+      const reference = media_ref ?? asset_id;
+      if (!reference || (asset_id && media_ref)) {
+        throw new Error("Provide exactly one of asset_id or media_ref");
+      }
+      const metadata = await assets.getMetadata(reference, tenantId);
+      const signedLink = asset_id && config.mediaResourceBackend === "llm_gateway"
+        ? createSignedAssetLink(asset_id, tenantId)
+        : null;
+      const previewUri = signedLink?.preview_url ?? metadata.uri;
       const result = {
-        asset_id,
+        ...(asset_id ? { asset_id } : {}),
+        ...(media_ref ? { media_ref } : {}),
+        uri: metadata.uri,
+        ...(metadata.resource_id ? { resource_id: metadata.resource_id } : {}),
         mime_type: metadata.mime_type,
         original_name: metadata.original_name,
         size: metadata.size,
-        ...link
+        ...(signedLink ?? {})
       };
       return {
         content: [
           { type: "text" as const, text: JSON.stringify(result) },
           {
             type: "resource_link" as const,
-            uri: link.preview_url,
-            name: metadata.original_name || asset_id,
-            description: "Short-lived signed media preview URL",
+            uri: previewUri,
+            name: metadata.original_name || reference,
+            description: "Media resource reference",
             mimeType: metadata.mime_type
           }
         ]
