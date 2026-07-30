@@ -111,7 +111,8 @@ export class JobManager extends EventEmitter {
         const source = await this.assets.materialize(mediaRef, job.tenantId, temporaryDirectory);
         prepared.set(input.role, await this.prepareComfyInput(source, input.role, job.id));
       }
-      const workflow = await this.registry.buildWorkflow(job.request, prepared, job.tenantId);
+      const { workflow, resolvedSettings } = await this.registry.buildWorkflowPlan(job.request, prepared, job.tenantId);
+      job.resolvedSettings = resolvedSettings;
       if (this.isCancelled(job.id)) return;
       job.status = "running";
       await this.persist(job);

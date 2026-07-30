@@ -17,13 +17,20 @@ const mediaInputSchema = z.object({
   message: "Provide exactly one of asset_id or media_ref"
 });
 
-const inputSchema = {
-  workflow_id: z.string().describe("Workflow ID returned by list_media_workflows"),
-  inputs: z.array(mediaInputSchema),
-  prompt: z.string(),
-  negative_prompt: z.string().optional(),
-  parameters: z.record(z.unknown()).optional().describe("Only include parameters explicitly exposed by the selected workflow and explicitly requested by the user")
-};
+function createInputSchema(workflows: unknown[]) {
+  const ids = workflows.map((workflow) => (workflow as { id: string }).id);
+  return {
+    workflow_id: z.string().describe("Workflow ID. Available values: " + ids.join(", ")),
+    inputs: z.array(mediaInputSchema),
+    prompt: z.string(),
+    negative_prompt: z.string().optional(),
+    parameters: z.record(z.unknown()).optional().describe("Only include parameters exposed by the selected workflow and explicitly requested by the user; omit them to use defaults")
+  };
+}
+
+export function createWorkflowToolDescription(workflows: unknown[]): string {
+  return "Start an asynchronous ComfyUI workflow using existing media references. Tenant-scoped workflow catalog: " + JSON.stringify(workflows);
+}
 
 function text(value: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value) }] };
@@ -41,24 +48,20 @@ function jobWithPreviewUrls(job: GenerationJob, tenantId: string) {
 
 function createServer(manager: JobManager, registry: WorkflowRegistry, tenantId: string): McpServer {
   const assets = new AssetClient();
+  const workflows = registry.capabilities(tenantId);
   const server = new McpServer(
     { name: "spark-video-server", version: "0.1.0" },
     {
       instructions:
-        "Call list_media_workflows before creating a job. Use only media references supplied by the user. Pass runclave-resource:// references as media_ref and legacy llm-gateway asset IDs as asset_id. Generation is asynchronous; create_media_job returns a job ID immediately. Completed jobs return durable resource URIs. Never request or embed asset data as base64."
+        "The create_media_job tool description contains the complete tenant-scoped workflow catalog; call it directly without a separate workflow-list call. Use only media references supplied by the user. Pass runclave-resource:// references as media_ref and legacy llm-gateway asset IDs as asset_id. Generation is asynchronous; create_media_job returns a job ID immediately. Completed jobs return durable resource URIs. Never request or embed asset data as base64."
     }
-  );
-  server.registerTool(
-    "list_media_workflows",
-    { title: "List media workflows", description: "List enabled text-to-image, image-to-image, and image-to-video workflows" },
-    async () => text(registry.capabilities(tenantId))
   );
   server.registerTool(
     "create_media_job",
     {
       title: "Create media generation job",
-      description: "Start an asynchronous ComfyUI workflow using existing media references",
-      inputSchema
+      description: createWorkflowToolDescription(workflows),
+      inputSchema: createInputSchema(workflows)
     },
     async (args) => text(await manager.create(args, tenantId))
   );

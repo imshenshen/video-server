@@ -1,0 +1,609 @@
+{
+  "id": "krea2-text-to-image",
+  "name": "Krea2 文生图",
+  "description": "固定 Krea2 Muse 模型；通过 style 选择受控 LoRA 配方，通过 quality 选择快速初生图、二采或高清重绘。",
+  "kind": "text_to_image",
+  "enabled": true,
+  "allowedTenants": [
+    "default"
+  ],
+  "workflowFile": "krea2-text-to-image.api.json",
+  "bindings": {
+    "prompt": {
+      "nodeId": "264",
+      "input": "text"
+    },
+    "assets": {},
+    "randomSeeds": [
+      {
+        "nodeId": "268",
+        "input": "seed"
+      },
+      {
+        "nodeId": "284",
+        "input": "seed"
+      }
+    ],
+    "parameters": {}
+  },
+  "presets": {
+    "style": {
+      "default": "none",
+      "options": {
+        "none": {
+          "label": "不使用 LoRA",
+          "description": "使用 Krea2 基础模型，不应用任何 LoRA 权重",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 0
+            }
+          ]
+        },
+        "asian_realistic": {
+          "label": "亚洲写实",
+          "description": "默认亚洲人物写实风格",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-功能/Krea2-亚洲asianMix_v1-bf16.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 0.8
+            }
+          ]
+        },
+        "realism_engine_v2": {
+          "label": "Realism Engine V2",
+          "description": "部位表现和写实感强化",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-N/Krea2-realism_engine_v2.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "mystic_realistic": {
+          "label": "Mystic 写实",
+          "description": "真实质感和人物表现强化",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-N/Krea2-MysticXXX_v2.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "snofs": {
+          "label": "Snofs 半写实",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-N/Krea2-snofs_v1.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "nsw_plus": {
+          "label": "NSW+ 精细写实",
+          "description": "画面精细干净",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-N/Krea2-NSW+.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 0.8
+            }
+          ]
+        },
+        "turbo_nsw": {
+          "label": "Turbo NSW",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-N/Krea2-KREA2turboNSW.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1.8
+            }
+          ]
+        },
+        "realism_v2": {
+          "label": "Realism V2",
+          "description": "表情优化",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-N/Krea2-realism-V2.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "nud3": {
+          "label": "Nud3",
+          "description": "人物身材表现优化",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-N/Krea2-nud3.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "ink_wash": {
+          "label": "单色水墨画",
+          "promptPrefix": "monochrome ink wash style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/krea2_单色水墨画风darkbrush.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "stippling": {
+          "label": "单色点刻版画",
+          "promptPrefix": "monochrome stippling style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/krea2_单色点刻版画dotmatrix.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "kids_drawing": {
+          "label": "童趣写意手绘",
+          "promptPrefix": "naive expressive sketch style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/krea2_童趣写意手绘速写kidsdrawing.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "neon_drip": {
+          "label": "抽象流体肌理",
+          "promptPrefix": "textured abstract style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/krea2_肌理质感抽象流体neondrip.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "rainy_window": {
+          "label": "雨雾玻璃",
+          "promptPrefix": "rainy window style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/krea2_雨雾玻璃朦胧质感rainywindow.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "retro_anime": {
+          "label": "紫调复古动漫",
+          "promptPrefix": "purple retro anime style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/krea2_紫调复古旧动漫retroanime.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "soft_watercolor": {
+          "label": "柔和水彩",
+          "promptPrefix": "art deco watercolor style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/krea2_装饰艺术柔和水彩softwatercolor.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "sunset_blur": {
+          "label": "梦幻柔光动态模糊",
+          "promptPrefix": "ethereal motion blur style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/krea2_梦幻柔光动态模糊sunsetblur.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "vintage_tarot": {
+          "label": "复古塔罗牌",
+          "promptPrefix": "vintage tarot style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/krea2_复古塔罗牌插画vintagetarot.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "anime_flat_v20": {
+          "label": "二维平涂动漫",
+          "promptPrefix": "线条动漫，平涂，",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-2D动漫Anime_Flat_V20_nnegret.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 0.8
+            }
+          ]
+        },
+        "semi_real_anime_v1": {
+          "label": "2.5D 半写实动漫",
+          "promptPrefix": "semireal, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-25D动漫Semi_Real_Anime_V1_nnegret.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 0.8
+            }
+          ]
+        },
+        "gpt_anime_render": {
+          "label": "GPT 动漫渲染",
+          "promptPrefix": "gpt anime render style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-gpt anime render.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "nikki_style": {
+          "label": "Nikke 风格",
+          "promptPrefix": "Nikke style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-Nikki_Style_Anime_NSW.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "yukan_style": {
+          "label": "Yukan 动漫",
+          "promptPrefix": "yukan style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-动漫yukan-style.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "missile228": {
+          "label": "MISSILE228",
+          "promptPrefix": "MISSILE228 风格，",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-MISSILE228风格_c1-st5000.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 0.9
+            }
+          ]
+        },
+        "painterly": {
+          "label": "绘画美学",
+          "promptPrefix": "Painterly render style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-绘画美学风格painterly render style.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "asia_cosplay": {
+          "label": "亚洲 Cosplay",
+          "promptPrefix": "realistic, photography, cosplay photo, movie stills, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-asia_cosplay_krea_2.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "better_anime": {
+          "label": "高质量动漫",
+          "promptPrefix": "A high-quality anime screencap, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-更好的动漫BetterAnimeStyle_Krea2_v1.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "moby_comic": {
+          "label": "白鲸记漫画",
+          "promptPrefix": "moby_d1ck, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-漫画白鲸记风格_NSW.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "ogipote": {
+          "label": "Ogipote 漫画",
+          "promptPrefix": "Ogipote style, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-漫画风格ogipote-ep63.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "comic_book": {
+          "label": "电影感漫画书",
+          "promptPrefix": "A cinematic illustration, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-漫画书Comic Book V2T2.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "cyberpunk": {
+          "label": "赛博朋克现实",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-朋克现实CYPERPUNK_KREA_2.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "fantasy_realism": {
+          "label": "奇幻现实",
+          "promptPrefix": "f4nt4sy, ",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-奇幻现实FantasyRealism.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        },
+        "charcoal": {
+          "label": "炭笔素描",
+          "promptPrefix": "炭笔素描，",
+          "overrides": [
+            {
+              "nodeId": "263",
+              "input": "lora_name",
+              "value": "Krea2-风格/Krea2-炭笔素描.safetensors"
+            },
+            {
+              "nodeId": "263",
+              "input": "strength_model",
+              "value": 1
+            }
+          ]
+        }
+      }
+    },
+    "quality": {
+      "default": "quality",
+      "options": {
+        "fast": {
+          "label": "快速初生图",
+          "description": "只执行第一阶段采样",
+          "overrides": [
+            {
+              "nodeId": "350",
+              "input": "switch",
+              "value": false
+            },
+            {
+              "nodeId": "351",
+              "input": "switch",
+              "value": false
+            }
+          ]
+        },
+        "quality": {
+          "label": "二采高质量",
+          "description": "执行两阶段采样和色彩匹配",
+          "overrides": [
+            {
+              "nodeId": "350",
+              "input": "switch",
+              "value": true
+            },
+            {
+              "nodeId": "351",
+              "input": "switch",
+              "value": false
+            }
+          ]
+        },
+        "hd": {
+          "label": "二采高清重绘",
+          "description": "二采后执行 Ultimate SD Upscale",
+          "overrides": [
+            {
+              "nodeId": "350",
+              "input": "switch",
+              "value": true
+            },
+            {
+              "nodeId": "351",
+              "input": "switch",
+              "value": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}

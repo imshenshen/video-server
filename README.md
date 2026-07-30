@@ -84,7 +84,6 @@ curl -X POST http://spark:8090/jobs \
 
 MCP 地址：`http://spark:8090/mcp`，使用 Streamable HTTP、JSON response 模式。提供工具：
 
-- `list_media_workflows`
 - `create_media_job`
 - `get_media_job`
 - `get_media_asset`（校验媒体引用并返回元数据；不会返回 Base64）

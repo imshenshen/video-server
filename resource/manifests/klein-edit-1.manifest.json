@@ -1,0 +1,34 @@
+{
+  "id": "klein-edit-1",
+  "name": "Klein 1 图编辑",
+  "description": "使用 1 张输入图片进行 Klein 图像编辑",
+  "kind": "image_to_image",
+  "enabled": true,
+  "workflowFile": "klein-edit-1.api.json",
+  "bindings": {
+    "prompt": {
+      "nodeId": "19",
+      "input": "text"
+    },
+    "assets": {
+      "source_image": {
+        "nodeId": "63",
+        "input": "image",
+        "required": true
+      }
+    },
+    "parameters": {},
+    "randomSeeds": [
+      {
+        "nodeId": "95",
+        "input": "seed"
+      }
+    ]
+  },
+  "allowedTenants": [
+    "default",
+    "ariel",
+    "joy",
+    "ming"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "klein-text-to-image-nsfw",
+  "name": "Klein 文生图（NSFW LoRA）",
+  "description": "使用 Klein 和 NSFW LoRA 根据文本提示生成图像",
+  "kind": "text_to_image",
+  "enabled": false,
+  "allowedTenants": [
+    "default"
+  ],
+  "workflowFile": "klein-text-to-image-nsfw.api.json",
+  "bindings": {
+    "prompt": {
+      "nodeId": "19",
+      "input": "text"
+    },
+    "assets": {},
+    "parameters": {},
+    "randomSeeds": [
+      {
+        "nodeId": "18",
+        "input": "seed"
+      }
+    ]
+  }
+}

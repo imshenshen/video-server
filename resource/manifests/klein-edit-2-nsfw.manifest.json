@@ -1,0 +1,36 @@
+{
+  "id": "klein-edit-2-nsfw",
+  "name": "Klein 2 图编辑（NSFW LoRA）",
+  "description": "使用 2 张输入图片进行 Klein 图像编辑，启用 NSFW LoRA",
+  "kind": "image_to_image",
+  "enabled": true,
+  "workflowFile": "klein-edit-2-nsfw.api.json",
+  "bindings": {
+    "prompt": {
+      "nodeId": "19",
+      "input": "text"
+    },
+    "assets": {
+      "source_image": {
+        "nodeId": "63",
+        "input": "image",
+        "required": true
+      },
+      "reference_image": {
+        "nodeId": "64",
+        "input": "image",
+        "required": true
+      }
+    },
+    "parameters": {},
+    "randomSeeds": [
+      {
+        "nodeId": "95",
+        "input": "seed"
+      }
+    ]
+  },
+  "allowedTenants": [
+    "default"
+  ]
+}

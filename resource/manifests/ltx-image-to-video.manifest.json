@@ -1,0 +1,35 @@
+{
+  "id": "ltx-image-to-video",
+  "name": "LTX 2.3 单图生视频",
+  "description": "使用一张图片和动作描述生成约 7 秒、25 FPS 的带音频 MP4 视频。固定使用 LTX 2.3 distilled I2V 配方。",
+  "kind": "image_to_video",
+  "enabled": true,
+  "allowedTenants": [
+    "default"
+  ],
+  "workflowFile": "LTX-单图生视频.api.json",
+  "bindings": {
+    "prompt": {
+      "nodeId": "14",
+      "input": "text"
+    },
+    "negativePrompt": {
+      "nodeId": "15",
+      "input": "text"
+    },
+    "assets": {
+      "source_image": {
+        "nodeId": "10",
+        "input": "image",
+        "required": true
+      }
+    },
+    "randomSeeds": [
+      {
+        "nodeId": "29",
+        "input": "noise_seed"
+      }
+    ],
+    "parameters": {}
+  }
+}

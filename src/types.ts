@@ -84,6 +84,14 @@ export interface OutputAsset {
   content_url?: string;
 }
 
+export interface ResolvedWorkflowSettings {
+  effectivePrompt: string;
+  presets: Record<string, string>;
+  parameters: Record<string, unknown>;
+  randomSeeds: Array<NodeBinding & { value: number }>;
+  presetOverrides: Array<PresetOverride & { preset: string; option: string }>;
+}
+
 export interface GenerationJob {
   id: string;
   tenantId: string;
@@ -93,6 +101,7 @@ export interface GenerationJob {
   progress: number;
   currentNode?: string;
   comfyPromptId?: string;
+  resolvedSettings?: ResolvedWorkflowSettings;
   outputs: OutputAsset[];
   error?: string;
   createdAt: string;

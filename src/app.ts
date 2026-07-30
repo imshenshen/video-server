@@ -7,6 +7,7 @@ import { demoPage } from "./demo-page.js";
 import { JobManager } from "./job-manager.js";
 import { handleMcpRequest } from "./mcp.js";
 import { logMcpRequest } from "./request-log.js";
+import { ResourceEditor, resourceKindSchema } from "./resource-editor.js";
 import { verifyAssetAccessToken } from "./signed-asset-url.js";
 import { WorkflowRegistry } from "./workflow-registry.js";
 
@@ -31,6 +32,7 @@ export async function createApp(): Promise<{ app: express.Express; manager: JobM
   await manager.initialize();
   const app = express();
   const assetClient = new AssetClient();
+  const resourceEditor = new ResourceEditor(config.workflowDir, config.manifestDir, registry);
   app.disable("x-powered-by");
   app.use(express.json({ limit: "2mb" }));
   app.get("/healthz", (_req, res) => res.json({ status: "ok", workflows: registry.list().length }));
@@ -78,6 +80,24 @@ export async function createApp(): Promise<{ app: express.Express; manager: JobM
     res.json({ tenant_id: tenantId(req), tenant_header_enabled: config.apiUsers.length === 0 })
   );
   app.get("/workflows", (req, res) => res.json({ workflows: registry.capabilities(tenantId(req)) }));
+  app.get("/resources", async (_req, res, next) => {
+    try { res.json({ resources: await resourceEditor.list() }); } catch (error) { next(error); }
+  });
+  app.get("/resources/:kind/:filename", async (req, res, next) => {
+    try {
+      const kind = resourceKindSchema.parse(req.params.kind);
+      const filename = String(req.params.filename);
+      res.json({ kind, filename, content: await resourceEditor.read(kind, filename) });
+    } catch (error) { next(error); }
+  });
+  app.put("/resources/:kind/:filename", async (req, res, next) => {
+    try {
+      const kind = resourceKindSchema.parse(req.params.kind);
+      const filename = String(req.params.filename);
+      await resourceEditor.save(kind, filename, req.body);
+      res.json({ ok: true, kind, filename });
+    } catch (error) { next(error); }
+  });
   app.get("/assets/:id/content", async (req, res, next) => {
     try {
       const assetId = z.string().regex(/^(?:asset_[a-f0-9]{32}|res_[A-Za-z0-9-]+)$/).parse(String(req.params.id));
@@ -97,6 +117,27 @@ export async function createApp(): Promise<{ app: express.Express; manager: JobM
     } catch (error) {
       next(error);
     }
+  });
+  app.get("/jobs/:id/outputs/:index/content", async (req, res, next) => {
+    try {
+      const job = manager.get(String(req.params.id), tenantId(req));
+      const index = z.coerce.number().int().min(0).parse(req.params.index);
+      const output = job.outputs[index];
+      if (!output) {
+        res.status(404).json({ error: "Job output not found" });
+        return;
+      }
+      const reference = output.asset_id ?? output.resource_id ?? output.uri;
+      if (!reference) throw new Error("Job output has no downloadable reference");
+      const content = await assetClient.downloadContent(reference, tenantId(req));
+      res.setHeader("content-type", content.contentType);
+      res.setHeader("content-disposition", `inline; filename*=UTF-8''${encodeURIComponent(output.original_name || "output")}`);
+      res.setHeader("cache-control", "private, no-store");
+      res.setHeader("x-content-type-options", "nosniff");
+      if (content.contentLength) res.setHeader("content-length", content.contentLength);
+      content.stream.on("error", next);
+      content.stream.pipe(res);
+    } catch (error) { next(error); }
   });
   app.get("/jobs/:id", (req, res, next) => {
     try {

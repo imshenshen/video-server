@@ -1,0 +1,355 @@
+{
+  "202": {
+    "inputs": {
+      "model": [
+        "263",
+        0
+      ],
+      "add_noise": "enable",
+      "noise_seed": [
+        "268",
+        0
+      ],
+      "steps": 7,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "positive": [
+        "264",
+        0
+      ],
+      "negative": [
+        "259",
+        0
+      ],
+      "latent_image": [
+        "261",
+        0
+      ],
+      "start_at_step": 0,
+      "end_at_step": 7,
+      "return_with_leftover_noise": "enable"
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSamplerAdvanced"
+    }
+  },
+  "203": {
+    "inputs": {
+      "samples": [
+        "202",
+        0
+      ],
+      "upscale_method": "bislerp",
+      "scale_by": 1.5
+    },
+    "class_type": "LatentUpscaleBy",
+    "_meta": {
+      "title": "LatentUpscaleBy"
+    }
+  },
+  "204": {
+    "inputs": {
+      "samples": [
+        "202",
+        0
+      ],
+      "vae": [
+        "266",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAEDecode"
+    }
+  },
+  "211": {
+    "inputs": {
+      "model": [
+        "263",
+        0
+      ],
+      "add_noise": "enable",
+      "noise_seed": [
+        "268",
+        0
+      ],
+      "steps": 10,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "positive": [
+        "264",
+        0
+      ],
+      "negative": [
+        "259",
+        0
+      ],
+      "latent_image": [
+        "203",
+        0
+      ],
+      "start_at_step": 4,
+      "end_at_step": 999,
+      "return_with_leftover_noise": "disable"
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSamplerAdvanced"
+    }
+  },
+  "212": {
+    "inputs": {
+      "samples": [
+        "211",
+        0
+      ],
+      "vae": [
+        "266",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAEDecode"
+    }
+  },
+  "253": {
+    "inputs": {
+      "image_target": [
+        "212",
+        0
+      ],
+      "image_ref": [
+        "204",
+        0
+      ],
+      "method": "mkl",
+      "strength": 0.5,
+      "multithread": true
+    },
+    "class_type": "ColorMatchV2",
+    "_meta": {
+      "title": "ColorMatchV2"
+    }
+  },
+  "258": {
+    "inputs": {
+      "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
+      "type": "krea2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "CLIPLoader"
+    }
+  },
+  "259": {
+    "inputs": {
+      "conditioning": [
+        "264",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "261": {
+    "inputs": {
+      "width": 720,
+      "height": 1280,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "EmptyLatentImage"
+    }
+  },
+  "262": {
+    "inputs": {
+      "unet_name": "Krea2/moodyKrea2Mix_v50.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNETLoader"
+    }
+  },
+  "263": {
+    "inputs": {
+      "model": [
+        "262",
+        0
+      ],
+      "lora_name": "Krea2-功能/Krea2-亚洲asianMix_v1-bf16.safetensors",
+      "strength_model": 0.8
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoraLoaderModelOnly"
+    }
+  },
+  "264": {
+    "inputs": {
+      "text": "写实摄影，一位黑色长发的年轻亚洲女子站在阳光斑驳的森林中，头发自然披散在肩头并编成一条松散的长辫，用紫色发圈固定。她的皮肤白皙，嘴唇微张，笑容甜美，表情温柔。她身穿一袭白色露肩上衣，领口和袖口饰有精致蕾丝花边，胸前系着蝴蝶结，下摆微微收紧露出紫色腰带；脖子上戴着一条金色细链，坠着一枚椭圆形紫色宝石吊坠。她的右手轻轻捏住一朵紫色风铃草，花瓣舒展，花茎细长带有绿色叶片。柔和的金色阳光从左侧树叶间洒落，背景是朦胧的绿色树影与散景光点，整体画面呈现温暖、自然且梦幻的氛围。",
+      "clip": [
+        "258",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIPTextEncode"
+    }
+  },
+  "266": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAELoader"
+    }
+  },
+  "268": {
+    "inputs": {
+      "seed": 597831106137247
+    },
+    "class_type": "Seed (rgthree)",
+    "_meta": {
+      "title": "Seed (rgthree)"
+    }
+  },
+  "277": {
+    "inputs": {
+      "model_name": "OmniSR_X4_DIV2K.safetensors"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "HD Upscale Model"
+    }
+  },
+  "284": {
+    "inputs": {
+      "image": [
+        "253",
+        0
+      ],
+      "model": [
+        "263",
+        0
+      ],
+      "positive": [
+        "264",
+        0
+      ],
+      "negative": [
+        "259",
+        0
+      ],
+      "vae": [
+        "266",
+        0
+      ],
+      "upscale_model": [
+        "277",
+        0
+      ],
+      "upscale_by": 1.5,
+      "seed": 1,
+      "steps": 3,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 0.12,
+      "mode_type": "Linear",
+      "tile_width": 810,
+      "tile_height": 1440,
+      "mask_blur": 16,
+      "tile_padding": 64,
+      "seam_fix_mode": "None",
+      "seam_fix_denoise": 1,
+      "seam_fix_width": 64,
+      "seam_fix_mask_blur": 8,
+      "seam_fix_padding": 16,
+      "force_uniform_tiles": true,
+      "tiled_decode": false,
+      "batch_size": 1
+    },
+    "class_type": "UltimateSDUpscale",
+    "_meta": {
+      "title": "Krea2 HD Redraw"
+    }
+  },
+  "286": {
+    "inputs": {
+      "image_target": [
+        "284",
+        0
+      ],
+      "image_ref": [
+        "204",
+        0
+      ],
+      "method": "mkl",
+      "strength": 0.7,
+      "multithread": true
+    },
+    "class_type": "ColorMatchV2",
+    "_meta": {
+      "title": "HD Color Match"
+    }
+  },
+  "350": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "204",
+        0
+      ],
+      "on_true": [
+        "253",
+        0
+      ]
+    },
+    "class_type": "LazySwitchKJ",
+    "_meta": {
+      "title": "Fast or Quality"
+    }
+  },
+  "351": {
+    "inputs": {
+      "switch": false,
+      "on_false": [
+        "350",
+        0
+      ],
+      "on_true": [
+        "286",
+        0
+      ]
+    },
+    "class_type": "LazySwitchKJ",
+    "_meta": {
+      "title": "Standard or HD"
+    }
+  },
+  "352": {
+    "inputs": {
+      "images": [
+        "351",
+        0
+      ],
+      "filename_prefix": "Krea2-MCP-%date:yyyyMMddhhmmss%"
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Krea2 MCP Output"
+    }
+  }
+}

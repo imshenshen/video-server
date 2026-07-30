@@ -2,16 +2,31 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { demoPage } from "../src/demo-page.js";
 
-test("demo page exposes job and MCP controls without persisting credentials", () => {
+test("demo page exposes job, MCP and opt-in saved-token controls", () => {
   assert.match(demoPage, /id="token"/);
+  assert.match(demoPage, /data-1p-ignore/);
+  assert.match(demoPage, /-webkit-text-security:disc/);
+  assert.doesNotMatch(demoPage, /type="password"/);
   assert.match(demoPage, /fetch\(url/);
-  assert.match(demoPage, /list_media_workflows/);
+  assert.doesNotMatch(demoPage, /list_media_workflows/);
   assert.match(demoPage, /get_media_job/);
   assert.match(demoPage, /create_media_job/);
   assert.match(demoPage, /id="workflow"/);
   assert.match(demoPage, /id="asset-fields"/);
   assert.match(demoPage, /class="asset-input"/);
   assert.match(demoPage, /\/jobs/);
+  assert.match(demoPage, /class="job-id"/);
+  assert.match(demoPage, /expandedJobs/);
+  assert.match(demoPage, /hasJobSelection/);
+  assert.match(demoPage, /resolvedSettings:j\.resolvedSettings/);
+  assert.match(demoPage, /outputs\/"\+encodeURIComponent/);
   assert.match(demoPage, /\/mcp/);
-  assert.doesNotMatch(demoPage, /localStorage|sessionStorage/);
+  assert.match(demoPage, /id="resource-file"/);
+  assert.match(demoPage, /图形编辑/);
+  assert.match(demoPage, /JSON 源码/);
+  assert.match(demoPage, /\/resources/);
+  assert.match(demoPage, /localStorage\.setItem/);
+  assert.match(demoPage, /localStorage\.getItem/);
+  assert.match(demoPage, /titleClicks<3/);
+  assert.doesNotMatch(demoPage, /sessionStorage/);
 });

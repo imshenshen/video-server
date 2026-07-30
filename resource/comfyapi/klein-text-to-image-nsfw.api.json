@@ -1,0 +1,173 @@
+{
+  "10": {
+    "inputs": {
+      "vae_name": "full_encoder_small_decoder.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAELoader"
+    }
+  },
+  "11": {
+    "inputs": {
+      "conditioning": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "12": {
+    "inputs": {
+      "width": [
+        "28",
+        0
+      ],
+      "height": [
+        "28",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "EmptyFlux2LatentImage"
+    }
+  },
+  "13": {
+    "inputs": {
+      "unet_name": "flux-2-klein-9b-nvfp4/flux-2-klein-9b-nvfp4.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNETLoader"
+    }
+  },
+  "14": {
+    "inputs": {
+      "clip_name": "qwen_3_8b_fp8mixed.safetensors",
+      "type": "flux2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "CLIPLoader"
+    }
+  },
+  "17": {
+    "inputs": {
+      "samples": [
+        "18",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAEDecode"
+    }
+  },
+  "18": {
+    "inputs": {
+      "model": [
+        "38",
+        0
+      ],
+      "seed": 958165481137754,
+      "steps": 6,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "positive": [
+        "19",
+        0
+      ],
+      "negative": [
+        "11",
+        0
+      ],
+      "latent_image": [
+        "12",
+        0
+      ],
+      "denoise": 1
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "19": {
+    "inputs": {
+      "text": "一位年轻的东方女孩，面容精致，皮肤白皙，红色汉服，精美刺绣，日月花纹，长袖，专注于脸，专注于眼睛，非常细致的脸，非常漂亮的脸，很清澈的脸，棕色的眼睛，站在湖水之中，湖水浸湿了她的衣裙，衣衫凌乱，露肩，露背，微微侧身，手捂胸前，挡住了正在下滑的衣服。背景是高山下的瀑布。近景，阳光在脸上。",
+      "clip": [
+        "42",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIPTextEncode"
+    }
+  },
+  "28": {
+    "inputs": {
+      "SD1.5": "关",
+      "SDXL": "关",
+      "FLUX": "720×1280 (9:16)",
+      "WAN": "关",
+      "QWEN": "关",
+      "启用自定义尺寸": false,
+      "宽度": 1024,
+      "高度": 1024
+    },
+    "class_type": "EasySizeSimpleSetting",
+    "_meta": {
+      "title": "EasySizeSimpleSetting"
+    }
+  },
+  "31": {
+    "inputs": {
+      "images": [
+        "17",
+        0
+      ],
+      "filename_prefix": "ComfyUI"
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "SaveImage"
+    }
+  },
+  "38": {
+    "inputs": {
+      "model": [
+        "13",
+        0
+      ],
+      "lora_name": "flux-2-klein/flux-2-klein-NSFW.safetensors",
+      "strength_model": 0.9
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "NSFW LoRA"
+    }
+  },
+  "42": {
+    "inputs": {
+      "clip_name": "Huihui-Qwen3-8B-abliterated-v2.Q4_K_M.gguf",
+      "type": "flux2"
+    },
+    "class_type": "CLIPLoaderGGUF",
+    "_meta": {
+      "title": "CLIPLoaderGGUF"
+    }
+  }
+}

@@ -33,13 +33,16 @@ test("randomizes private seeds while preserving tuned API settings", async (t) =
   const registry = new WorkflowRegistry(workflowDir, manifestDir);
   await registry.load();
   const request = { workflow_id: "image", inputs: [], prompt: "new" };
-  const first = await registry.buildWorkflow(request, new Map(), "alice");
+  const { workflow: first, resolvedSettings } = await registry.buildWorkflowPlan(request, new Map(), "alice");
   const second = await registry.buildWorkflow(request, new Map(), "alice");
   const firstInputs = (first["1"] as { inputs: Record<string, number> }).inputs;
   const secondInputs = (second["1"] as { inputs: Record<string, number> }).inputs;
   assert.ok(Number.isSafeInteger(firstInputs.seed));
   assert.ok(firstInputs.seed >= 0);
   assert.notEqual(firstInputs.seed, secondInputs.seed);
+  assert.deepEqual(resolvedSettings.randomSeeds, [{ nodeId: "1", input: "seed", value: firstInputs.seed }]);
+  assert.deepEqual(resolvedSettings.presets, {});
+  assert.deepEqual(resolvedSettings.parameters, {});
   assert.deepEqual(
     { steps: firstInputs.steps, cfg: firstInputs.cfg, denoise: firstInputs.denoise },
     { steps: 6, cfg: 1, denoise: 1 }

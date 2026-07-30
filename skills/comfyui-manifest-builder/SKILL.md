@@ -84,5 +84,5 @@ node "<skill-dir>/scripts/manifest-tool.mjs" write \
 ```
 
 The command refuses overwrite. Use `--force` only after explicit overwrite confirmation. Restart
-video-server and verify REST `/workflows` plus MCP `list_media_workflows`; confirm locked settings are
+video-server and verify REST `/workflows` plus the `create_media_job` catalog returned by MCP `tools/list`; confirm locked settings are
 absent and run two builds to confirm seeds differ without changing the API file.

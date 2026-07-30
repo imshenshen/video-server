@@ -1,0 +1,28 @@
+{
+  "id": "klein-text-to-image",
+  "name": "Klein 文生图",
+  "description": "使用 Klein 根据文本提示生成图像",
+  "kind": "text_to_image",
+  "enabled": false,
+  "allowedTenants": [
+    "default",
+    "ariel",
+    "joy",
+    "ming"
+  ],
+  "workflowFile": "klein-text-to-image.api.json",
+  "bindings": {
+    "prompt": {
+      "nodeId": "19",
+      "input": "text"
+    },
+    "assets": {},
+    "parameters": {},
+    "randomSeeds": [
+      {
+        "nodeId": "18",
+        "input": "seed"
+      }
+    ]
+  }
+}

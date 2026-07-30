@@ -107,7 +107,7 @@ jq -r '
 }
 ```
 
-只有名单内的 Tenant 才能在 REST `/workflows` 或 MCP `list_media_workflows` 中看到它，
+只有名单内的 Tenant 才能在 REST `/workflows` 或 MCP `tools/list` 返回的 `create_media_job` 工作流目录中看到它，
 也只有名单内的 Tenant 能创建和执行对应任务。未授权访问统一返回未知工作流，避免泄露 ID。
 修改权限后，运行 manifest skill 的 `validate`，再重启 `video-server`。
 

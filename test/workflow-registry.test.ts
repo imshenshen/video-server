@@ -93,7 +93,7 @@ test("expands semantic presets into trusted overrides and prompt affixes", async
   }));
   const registry = new WorkflowRegistry(path.join(root, "api"), path.join(root, "manifests"));
   await registry.load();
-  const workflow = await registry.buildWorkflow(
+  const { workflow, resolvedSettings } = await registry.buildWorkflowPlan(
     { workflow_id: "image", inputs: [], prompt: "forest", parameters: { quality: "hd" } },
     new Map(), "alice"
   );
@@ -102,6 +102,14 @@ test("expands semantic presets into trusted overrides and prompt affixes", async
     lora_name: "anime.safetensors", strength_model: 0.8
   });
   assert.equal((workflow["3"] as { inputs: { switch: boolean } }).inputs.switch, true);
+  assert.equal(resolvedSettings.effectivePrompt, "anime, forest");
+  assert.deepEqual(resolvedSettings.presets, { style: "anime", quality: "hd" });
+  assert.deepEqual(resolvedSettings.randomSeeds, []);
+  assert.deepEqual(resolvedSettings.presetOverrides, [
+    { preset: "style", option: "anime", nodeId: "2", input: "lora_name", value: "anime.safetensors" },
+    { preset: "style", option: "anime", nodeId: "2", input: "strength_model", value: 0.8 },
+    { preset: "quality", option: "hd", nodeId: "3", input: "switch", value: true }
+  ]);
   const parameters = (registry.capabilities("alice")[0] as { parameters: Record<string, unknown> }).parameters;
   assert.deepEqual((parameters.style as { enum: string[] }).enum, ["anime"]);
   assert.throws(
