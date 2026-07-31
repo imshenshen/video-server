@@ -119,8 +119,8 @@ Runclave 会注入以下对象，调用方不需要自行填写：
 
 回调使用相同的 `eventId` 进行幂等重试，并携带 `operationId`、终态、完整 job 结果以及已经
 注册完成的 `outputResourceIds`。回调 token 只写入权限为 `0600` 的私有 job 文件，对外的
-REST、MCP、SSE 和日志均不会返回该 token。远程回调地址必须使用 HTTPS；仅 localhost
-允许 HTTP。
+REST、MCP、SSE 和日志均不会返回该 token。公网部署应使用 HTTPS；HTTP callback 仅允许
+localhost，或与 `RUNCLAVE_RESOURCE_BASE_URL` 配置同源的受信 Runclave 服务。
 
 可选重试配置：
 

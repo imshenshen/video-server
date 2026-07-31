@@ -66,7 +66,10 @@ async function waitFor(check: () => boolean, timeoutMs = 1_000): Promise<void> {
   }
 }
 
-test("webhook callback schema accepts Runclave HTTPS and local HTTP URLs", () => {
+test("webhook callback schema accepts HTTPS, local HTTP, and the configured Runclave HTTP origin", () => {
+  const previousRunclaveBaseUrl = config.runclaveResourceBaseUrl;
+  config.runclaveResourceBaseUrl = "http://macmini.example.test:3001";
+  try {
   assert.equal(webhookCallbackSchema.parse(callback()).protocol, "runclave.capability-callback.v1");
   assert.equal(
     webhookCallbackSchema.parse({ ...callback(), url: "http://127.0.0.1:3001/callback" }).url,
@@ -76,10 +79,17 @@ test("webhook callback schema accepts Runclave HTTPS and local HTTP URLs", () =>
     webhookCallbackSchema.parse({ ...callback(), url: "http://[::1]:3001/callback" }).url,
     "http://[::1]:3001/callback"
   );
-  assert.throws(
-    () => webhookCallbackSchema.parse({ ...callback(), url: "http://runclave.example.test/callback" }),
-    /Remote webhook callback URLs must use HTTPS/
+  assert.equal(
+    webhookCallbackSchema.parse({ ...callback(), url: "http://macmini.example.test:3001/callback" }).url,
+    "http://macmini.example.test:3001/callback"
   );
+  assert.throws(
+    () => webhookCallbackSchema.parse({ ...callback(), url: "http://untrusted.example.test/callback" }),
+    /must match RUNCLAVE_RESOURCE_BASE_URL/
+  );
+  } finally {
+    config.runclaveResourceBaseUrl = previousRunclaveBaseUrl;
+  }
 });
 
 test("job persistence keeps webhook credentials private and uses owner-only file permissions", async () => {

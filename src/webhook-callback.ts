@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { config } from "./config.js";
 import type { GenerationJob, JobWebhookCallback } from "./types.js";
 
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -11,11 +12,18 @@ function callbackUrl(value: string): string {
   if (url.username || url.password || url.hash) {
     throw new Error("Webhook callback URL cannot contain credentials or a fragment");
   }
-  if (
-    url.protocol === "http:" &&
-    !LOOPBACK_HOSTNAMES.has(url.hostname)
-  ) {
-    throw new Error("Remote webhook callback URLs must use HTTPS");
+  if (url.protocol === "http:" && !LOOPBACK_HOSTNAMES.has(url.hostname)) {
+    let trustedRunclaveOrigin = "";
+    try {
+      trustedRunclaveOrigin = new URL(config.runclaveResourceBaseUrl).origin;
+    } catch {
+      // The main config validation reports malformed service URLs separately.
+    }
+    if (url.origin !== trustedRunclaveOrigin) {
+      throw new Error(
+        "HTTP webhook callback origin must match RUNCLAVE_RESOURCE_BASE_URL; use HTTPS for other hosts"
+      );
+    }
   }
   return url.toString();
 }
