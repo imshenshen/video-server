@@ -7,7 +7,10 @@ import { ComfyClient } from "./comfy-client.js";
 import { config } from "./config.js";
 import { JobStore } from "./job-store.js";
 import type { ComfyOutputFile, CreateJobRequest, GenerationJob } from "./types.js";
+import { publicGenerationJob, WebhookCallbackClient } from "./webhook-callback.js";
 import { WorkflowRegistry } from "./workflow-registry.js";
+
+const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
 function assertWithin(root: string, candidate: string): string {
   const resolved = path.resolve(candidate);
@@ -20,13 +23,16 @@ export class JobManager extends EventEmitter {
   private readonly queue: string[] = [];
   private readonly jobs = new Map<string, GenerationJob>();
   private readonly active = new Set<string>();
+  private readonly webhookTimers = new Map<string, NodeJS.Timeout>();
+  private readonly webhookDeliveries = new Set<string>();
   private stopping = false;
 
   constructor(
     private readonly registry: WorkflowRegistry,
     private readonly store = new JobStore(),
     private readonly assets = new AssetClient(),
-    private readonly comfy = new ComfyClient()
+    private readonly comfy = new ComfyClient(),
+    private readonly webhooks = new WebhookCallbackClient(undefined, config.webhookTimeoutMs)
   ) {
     super();
   }
@@ -41,6 +47,7 @@ export class JobManager extends EventEmitter {
       }
       this.jobs.set(job.id, job);
       if (job.status === "queued") this.queue.push(job.id);
+      if (TERMINAL_JOB_STATUSES.has(job.status)) this.scheduleWebhookCallback(job);
     }
     for (let index = 0; index < config.concurrency; index += 1) void this.worker();
   }
@@ -51,32 +58,37 @@ export class JobManager extends EventEmitter {
     this.jobs.set(job.id, job);
     this.queue.push(job.id);
     this.emitJob(job);
-    return structuredClone(job);
+    return publicGenerationJob(job);
   }
 
   get(id: string, tenantId: string): GenerationJob {
     const job = this.jobs.get(id);
     if (!job || job.tenantId !== tenantId) throw new Error("Job not found");
-    return structuredClone(job);
+    return publicGenerationJob(job);
   }
 
   list(tenantId: string): GenerationJob[] {
-    return [...this.jobs.values()].filter((job) => job.tenantId === tenantId).map((job) => structuredClone(job));
+    return [...this.jobs.values()]
+      .filter((job) => job.tenantId === tenantId)
+      .map((job) => publicGenerationJob(job));
   }
 
   async cancel(id: string, tenantId: string): Promise<GenerationJob> {
     const job = this.jobs.get(id);
     if (!job || job.tenantId !== tenantId) throw new Error("Job not found");
-    if (["completed", "failed", "cancelled"].includes(job.status)) return structuredClone(job);
+    if (TERMINAL_JOB_STATUSES.has(job.status)) return publicGenerationJob(job);
     job.status = "cancelled";
     job.completedAt = new Date().toISOString();
     if (job.comfyPromptId) await this.comfy.cancel(job.comfyPromptId);
     await this.persist(job);
-    return structuredClone(job);
+    this.scheduleWebhookCallback(job);
+    return publicGenerationJob(job);
   }
 
   stop(): void {
     this.stopping = true;
+    for (const timer of this.webhookTimers.values()) clearTimeout(timer);
+    this.webhookTimers.clear();
   }
 
   private async worker(): Promise<void> {
@@ -134,12 +146,14 @@ export class JobManager extends EventEmitter {
       delete job.currentNode;
       job.completedAt = new Date().toISOString();
       await this.persist(job);
+      this.scheduleWebhookCallback(job);
     } catch (error) {
       if (job.status !== "cancelled") {
         job.status = "failed";
         job.error = error instanceof Error ? error.message : String(error);
         job.completedAt = new Date().toISOString();
         await this.persist(job);
+        this.scheduleWebhookCallback(job);
       }
     } finally {
       await rm(temporaryDirectory, { recursive: true, force: true }).catch(() => undefined);
@@ -178,8 +192,80 @@ export class JobManager extends EventEmitter {
     return this.jobs.get(id)?.status === "cancelled";
   }
 
+  private scheduleWebhookCallback(job: GenerationJob): void {
+    const callback = job.webhookCallback;
+    if (
+      this.stopping ||
+      !callback ||
+      callback.deliveryStatus === "delivered" ||
+      callback.deliveryStatus === "failed" ||
+      !TERMINAL_JOB_STATUSES.has(job.status) ||
+      this.webhookTimers.has(job.id) ||
+      this.webhookDeliveries.has(job.id)
+    ) {
+      return;
+    }
+    const nextAttemptAt = Date.parse(callback.nextAttemptAt ?? "");
+    const delay = Number.isFinite(nextAttemptAt)
+      ? Math.max(0, nextAttemptAt - Date.now())
+      : 0;
+    const timer = setTimeout(() => {
+      this.webhookTimers.delete(job.id);
+      void this.deliverWebhookCallback(job.id);
+    }, delay);
+    timer.unref();
+    this.webhookTimers.set(job.id, timer);
+  }
+
+  private async deliverWebhookCallback(jobId: string): Promise<void> {
+    const job = this.jobs.get(jobId);
+    const callback = job?.webhookCallback;
+    if (
+      this.stopping ||
+      !job ||
+      !callback ||
+      callback.deliveryStatus === "delivered" ||
+      callback.deliveryStatus === "failed" ||
+      this.webhookDeliveries.has(jobId)
+    ) {
+      return;
+    }
+    this.webhookDeliveries.add(jobId);
+    callback.deliveryStatus = "delivering";
+    callback.attempts += 1;
+    delete callback.nextAttemptAt;
+    delete callback.lastError;
+    try {
+      await this.persist(job);
+      await this.webhooks.deliver(job);
+      callback.deliveryStatus = "delivered";
+      callback.deliveredAt = new Date().toISOString();
+      delete callback.lastError;
+    } catch (error) {
+      callback.lastError = error instanceof Error ? error.message : String(error);
+      if (callback.attempts >= config.webhookMaxAttempts) {
+        callback.deliveryStatus = "failed";
+      } else {
+        callback.deliveryStatus = "retrying";
+        const retryDelay = Math.min(
+          config.webhookRetryBaseMs * (2 ** Math.max(0, callback.attempts - 1)),
+          60_000
+        );
+        callback.nextAttemptAt = new Date(Date.now() + retryDelay).toISOString();
+      }
+    } finally {
+      try {
+        await this.persist(job);
+      } finally {
+        this.webhookDeliveries.delete(jobId);
+        if (callback.deliveryStatus === "retrying") this.scheduleWebhookCallback(job);
+      }
+    }
+  }
+
   private emitJob(job: GenerationJob): void {
-    this.emit(`job:${job.id}`, structuredClone(job));
-    this.emit("job", structuredClone(job));
+    const publicJob = publicGenerationJob(job);
+    this.emit(`job:${job.id}`, publicJob);
+    this.emit("job", publicJob);
   }
 }

@@ -57,5 +57,8 @@ export const config = {
   comfyOutputRoot: process.env.COMFY_OUTPUT_ROOT ? path.resolve(process.env.COMFY_OUTPUT_ROOT) : undefined,
   videoServerPublicBaseUrl: process.env.VIDEO_SERVER_PUBLIC_BASE_URL?.replace(/\/$/, ""),
   assetUrlSigningSecret: process.env.ASSET_URL_SIGNING_SECRET,
-  assetUrlTtlSeconds: integer("ASSET_URL_TTL_SECONDS", 24 * 60 * 60)
+  assetUrlTtlSeconds: integer("ASSET_URL_TTL_SECONDS", 24 * 60 * 60),
+  webhookTimeoutMs: integer("WEBHOOK_TIMEOUT_MS", 10_000),
+  webhookMaxAttempts: integer("WEBHOOK_MAX_ATTEMPTS", 5),
+  webhookRetryBaseMs: integer("WEBHOOK_RETRY_BASE_MS", 2_000)
 };

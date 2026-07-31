@@ -65,12 +65,21 @@ export interface JobInput {
   role: string;
 }
 
+export interface WebhookCallbackRequest {
+  protocol: "runclave.capability-callback.v1";
+  url: string;
+  token: string;
+  subscriptionId: string;
+  invocationId: string;
+}
+
 export interface CreateJobRequest {
   workflow_id: string;
   inputs: JobInput[];
   prompt: string;
   negative_prompt?: string;
   parameters?: Record<string, unknown>;
+  callback?: WebhookCallbackRequest;
 }
 
 export interface OutputAsset {
@@ -104,9 +113,24 @@ export interface GenerationJob {
   resolvedSettings?: ResolvedWorkflowSettings;
   outputs: OutputAsset[];
   error?: string;
+  webhookCallback?: JobWebhookCallback;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+}
+
+export interface JobWebhookCallback {
+  protocol: "runclave.capability-callback.v1";
+  url?: string;
+  token?: string;
+  subscriptionId: string;
+  invocationId: string;
+  eventId: string;
+  deliveryStatus: "pending" | "delivering" | "retrying" | "delivered" | "failed";
+  attempts: number;
+  nextAttemptAt?: string;
+  deliveredAt?: string;
+  lastError?: string;
 }
 
 export interface ComfyOutputFile {

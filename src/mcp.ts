@@ -7,6 +7,7 @@ import { config } from "./config.js";
 import type { JobManager } from "./job-manager.js";
 import { canCreateSignedAssetLinks, createSignedAssetLink } from "./signed-asset-url.js";
 import type { GenerationJob } from "./types.js";
+import { webhookCallbackSchema } from "./webhook-callback.js";
 import type { WorkflowRegistry } from "./workflow-registry.js";
 
 const mediaInputSchema = z.object({
@@ -24,12 +25,13 @@ function createInputSchema(workflows: unknown[]) {
     inputs: z.array(mediaInputSchema),
     prompt: z.string(),
     negative_prompt: z.string().optional(),
-    parameters: z.record(z.unknown()).optional().describe("Only include parameters exposed by the selected workflow and explicitly requested by the user; omit them to use defaults")
+    parameters: z.record(z.unknown()).optional().describe("Only include parameters exposed by the selected workflow and explicitly requested by the user; omit them to use defaults"),
+    callback: webhookCallbackSchema.optional().describe("Optional Runclave webhook injected by the caller. The server posts the terminal job result to this callback, so callers do not need to poll get_media_job.")
   };
 }
 
 export function createWorkflowToolDescription(workflows: unknown[]): string {
-  return "Start an asynchronous ComfyUI workflow using existing media references. Tenant-scoped workflow catalog: " + JSON.stringify(workflows);
+  return "Start an asynchronous ComfyUI workflow using existing media references. When a Runclave callback is supplied, the terminal result is delivered by webhook and polling is only a fallback. Tenant-scoped workflow catalog: " + JSON.stringify(workflows);
 }
 
 function text(value: unknown) {
@@ -53,7 +55,7 @@ function createServer(manager: JobManager, registry: WorkflowRegistry, tenantId:
     { name: "spark-video-server", version: "0.1.0" },
     {
       instructions:
-        "The create_media_job tool description contains the complete tenant-scoped workflow catalog; call it directly without a separate workflow-list call. Use only media references supplied by the user. Pass runclave-resource:// references as media_ref and legacy llm-gateway asset IDs as asset_id. Generation is asynchronous; create_media_job returns a job ID immediately. Completed jobs return durable resource URIs. Never request or embed asset data as base64."
+        "The create_media_job tool description contains the complete tenant-scoped workflow catalog; call it directly without a separate workflow-list call. Use only media references supplied by the user. Pass runclave-resource:// references as media_ref and legacy llm-gateway asset IDs as asset_id. Generation is asynchronous; create_media_job returns a job ID immediately. When callback is present, video-server sends the terminal result to Runclave and get_media_job is only a fallback. Completed jobs return durable resource URIs. Never request or embed asset data as base64."
     }
   );
   server.registerTool(

@@ -13,14 +13,23 @@ export class JobStore {
 
   async create(request: CreateJobRequest, tenantId: string): Promise<GenerationJob> {
     const now = new Date().toISOString();
+    const { callback, ...jobRequest } = structuredClone(request);
     const job: GenerationJob = {
       id: `job_${randomUUID().replaceAll("-", "")}`,
       tenantId,
       workflowId: request.workflow_id,
-      request,
+      request: jobRequest,
       status: "queued",
       progress: 0,
       outputs: [],
+      ...(callback ? {
+        webhookCallback: {
+          ...callback,
+          eventId: `callback_${randomUUID()}`,
+          deliveryStatus: "pending",
+          attempts: 0
+        }
+      } : {}),
       createdAt: now,
       updatedAt: now
     };
@@ -35,7 +44,7 @@ export class JobStore {
     const operation = previous.catch(() => undefined).then(async () => {
       const destination = path.join(config.jobDataDir, `${job.id}.json`);
       const temporary = `${destination}.${randomUUID()}.tmp`;
-      await writeFile(temporary, snapshot, { flag: "wx" });
+      await writeFile(temporary, snapshot, { flag: "wx", mode: 0o600 });
       await rename(temporary, destination);
     });
     this.saveChains.set(job.id, operation);

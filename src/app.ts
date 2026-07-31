@@ -9,6 +9,7 @@ import { handleMcpRequest } from "./mcp.js";
 import { logMcpRequest } from "./request-log.js";
 import { ResourceEditor, resourceKindSchema } from "./resource-editor.js";
 import { verifyAssetAccessToken } from "./signed-asset-url.js";
+import { webhookCallbackSchema } from "./webhook-callback.js";
 import { WorkflowRegistry } from "./workflow-registry.js";
 
 const createJobSchema = z.object({
@@ -22,7 +23,8 @@ const createJobSchema = z.object({
   })),
   prompt: z.string(),
   negative_prompt: z.string().optional(),
-  parameters: z.record(z.unknown()).optional()
+  parameters: z.record(z.unknown()).optional(),
+  callback: webhookCallbackSchema.optional()
 });
 
 export async function createApp(): Promise<{ app: express.Express; manager: JobManager }> {

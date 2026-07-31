@@ -91,6 +91,47 @@ MCP 地址：`http://spark:8090/mcp`，使用 Streamable HTTP、JSON response �
 
 MCP 请求同样需要 Bearer Token 和 `x-tenant-id`。
 
+## Runclave Webhook 回调
+
+`create_media_job` 支持 Runclave 注入的可选 `callback` 参数。任务完成、失败或取消后，
+video-server 会在输出资源注册完成后主动 POST 最终结果，因此 ControlAgent 不需要持续轮询
+`get_media_job`；轮询仍可作为回调不可用时的后备方案。
+
+在 Runclave 的 Video Server 工具编辑器中配置：
+
+- Webhook Base URL：填写 video-server 能访问的 Runclave HTTPS 地址。
+- 创建工具：`create_media_job`
+- 状态查询工具：`get_media_job`
+- 回调参数路径：`callback`
+- Operation ID 结果路径：`id`
+
+Runclave 会注入以下对象，调用方不需要自行填写：
+
+```json
+{
+  "protocol": "runclave.capability-callback.v1",
+  "url": "https://runclave.example.com/api/capability-callbacks/callback_xxx",
+  "token": "<one-time bearer token>",
+  "subscriptionId": "callback_xxx",
+  "invocationId": "call_xxx"
+}
+```
+
+回调使用相同的 `eventId` 进行幂等重试，并携带 `operationId`、终态、完整 job 结果以及已经
+注册完成的 `outputResourceIds`。回调 token 只写入权限为 `0600` 的私有 job 文件，对外的
+REST、MCP、SSE 和日志均不会返回该 token。远程回调地址必须使用 HTTPS；仅 localhost
+允许 HTTP。
+
+可选重试配置：
+
+```dotenv
+WEBHOOK_TIMEOUT_MS=10000
+WEBHOOK_MAX_ATTEMPTS=5
+WEBHOOK_RETRY_BASE_MS=2000
+```
+
+失败使用指数退避，最大间隔 60 秒。服务重启时会继续发送尚未成功送达的终态回调。
+
 ## Runclave 资源后端（推荐）
 
 当上传和对话资源由 Runclave 管理时：
