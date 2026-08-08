@@ -36,8 +36,26 @@ function internalHeaders(): Record<string, string> {
 
 function runclaveHeaders(): Record<string, string> {
   return config.runclaveResourceApiToken
-    ? { "x-runclave-desktop-token": config.runclaveResourceApiToken }
+    ? { authorization: `Bearer ${config.runclaveResourceApiToken}` }
     : {};
+}
+
+function retryableRunclaveRegistration(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) return false;
+  if ([429, 502, 503, 504].includes(error.response?.status ?? 0)) return true;
+  return new Set([
+    "ECONNABORTED",
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "EAI_AGAIN",
+    "ENETDOWN",
+    "ENETUNREACH",
+    "ETIMEDOUT"
+  ]).has(String(error.code ?? "").toUpperCase());
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function runclaveResourceId(value: string): string {
@@ -137,11 +155,9 @@ export class AssetClient {
   ): Promise<OutputAsset> {
     if (this.usesRunclave) {
       const staged = await this.stageLocalFile(filePath, originalName);
-      try {
-        return await this.registerRunclaveObject(staged.storageKey, originalName, undefined, ownerId);
-      } finally {
-        await rm(path.dirname(staged.path), { recursive: true, force: true }).catch(() => undefined);
-      }
+      const output = await this.registerRunclaveObject(staged.storageKey, originalName, undefined, ownerId);
+      await rm(path.dirname(staged.path), { recursive: true, force: true }).catch(() => undefined);
+      return output;
     }
     const response = await upstreamRequest("Asset service", "import generated output", () => axios.post(
       `${config.assetServiceUrl}/internal/assets/import`,
@@ -184,11 +200,9 @@ export class AssetClient {
       const staged = this.stagingTarget(originalName);
       await mkdir(path.dirname(staged.path), { recursive: true });
       await pipeline(stream, createWriteStream(staged.path, { flags: "wx" }));
-      try {
-        return await this.registerRunclaveObject(staged.storageKey, originalName, mimeType, ownerId);
-      } finally {
-        await rm(path.dirname(staged.path), { recursive: true, force: true }).catch(() => undefined);
-      }
+      const output = await this.registerRunclaveObject(staged.storageKey, originalName, mimeType, ownerId);
+      await rm(path.dirname(staged.path), { recursive: true, force: true }).catch(() => undefined);
+      return output;
     }
     const request: AxiosRequestConfig = {
       headers: {
@@ -240,17 +254,29 @@ export class AssetClient {
     mimeType: string | undefined,
     ownerId: string
   ): Promise<OutputAsset> {
-    const response = await upstreamRequest("Runclave resource service", "register generated output", () => axios.post<RunclaveResource>(
-      `${config.runclaveResourceBaseUrl}/api/resources/register`,
-      {
-        storageKey,
-        originalName,
-        ...(mimeType ? { mimeType } : {}),
-        subjectType: "video_job",
-        subjectId: ownerId
-      },
-      { headers: runclaveHeaders() }
-    ));
+    const response = await upstreamRequest("Runclave resource service", "register generated output", async () => {
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= config.runclaveRegisterMaxAttempts; attempt += 1) {
+        try {
+          return await axios.post<RunclaveResource>(
+            `${config.runclaveResourceBaseUrl}/api/resources/register`,
+            {
+              storageKey,
+              originalName,
+              ...(mimeType ? { mimeType } : {}),
+              subjectType: "external_job",
+              subjectId: ownerId
+            },
+            { headers: runclaveHeaders() }
+          );
+        } catch (error) {
+          lastError = error;
+          if (attempt >= config.runclaveRegisterMaxAttempts || !retryableRunclaveRegistration(error)) throw error;
+          await delay(Math.min(config.runclaveRegisterRetryBaseMs * (2 ** (attempt - 1)), 30_000));
+        }
+      }
+      throw lastError;
+    });
     return runclaveOutput(response.data);
   }
 }

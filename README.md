@@ -138,18 +138,27 @@ WEBHOOK_RETRY_BASE_MS=2000
 
 ```dotenv
 MEDIA_RESOURCE_BACKEND=runclave
-RUNCLAVE_RESOURCE_BASE_URL=http://macmini.shenshen:3001
-RUNCLAVE_RESOURCE_API_TOKEN=
+RUNCLAVE_RESOURCE_BASE_URL=http://macmini.shenshen:3410
+RUNCLAVE_RESOURCE_API_TOKEN=<Runclave 设置中生成的 Resource API 专用令牌>
 RUNCLAVE_SHARED_PROVIDER_ID=nas_main
 RUNCLAVE_SHARED_ROOT=/Volumes/media/runclave
+RUNCLAVE_REGISTER_MAX_ATTEMPTS=5
+RUNCLAVE_REGISTER_RETRY_BASE_MS=1000
 ```
 
 输入使用 `runclave-resource://res_xxx`。provider 与共享目录匹配时，video-server 直接从 NAS
 读取；否则通过 Runclave API 下载。生成结果先写入同一共享目录的临时区，再调用 Runclave
-注册接口归档为 `objects/<sha256 前缀>/<sha256>.<ext>`，注册完成即删除临时文件。相同内容会
+注册接口归档为 `objects/<sha256 前缀>/<sha256>.<ext>`，注册完成即删除临时文件。网络错误会
+指数退避重试；最终仍注册失败时保留临时文件，避免生成结果随 API 短暂断线而丢失。相同内容会
 复用同一个 Resource 和物理对象，video job、Control Session、消息分别通过绑定引用它。
 
-Runclave 开启 Desktop token 鉴权时填写 `RUNCLAVE_RESOURCE_API_TOKEN`；否则可留空。
+在 Runclave 的 **设置 → 系统 → HTTP 服务 → 第三方资源服务** 中创建
+`RUNCLAVE_RESOURCE_API_TOKEN`。它是只允许资源注册和按 ID 读取的 Bearer Token，不是浏览器
+访问密码，也不是桌面端内部 token。video-server 位于另一台机器时，还需在 Runclave 中开启
+“允许其他设备连接”、确认风险并保存；两台机器的 `RUNCLAVE_SHARED_ROOT` 必须指向同一份 NAS
+内容及相同的相对目录布局。不要把 Runclave 的明文 HTTP 端口直接暴露到公网。
+注册请求固定使用 `subjectType=external_job`，并把临时文件放在 `.incoming/` 下；Runclave 会拒绝
+专用令牌把资源直接绑定到 Control Session，或注册共享资源根目录中的其他文件。
 
 ## llm-gateway 旧资产后端
 

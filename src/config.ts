@@ -47,8 +47,10 @@ export const config = {
   assetServiceUrl: (process.env.ASSET_SERVICE_URL ?? "http://127.0.0.1:8080").replace(/\/$/, ""),
   assetApiKey: process.env.ASSET_SERVICE_API_KEY,
   assetInternalApiKey: process.env.ASSET_INTERNAL_API_KEY,
-  runclaveResourceBaseUrl: (process.env.RUNCLAVE_RESOURCE_BASE_URL ?? "http://127.0.0.1:3001").replace(/\/$/, ""),
+  runclaveResourceBaseUrl: (process.env.RUNCLAVE_RESOURCE_BASE_URL ?? "http://127.0.0.1:3410").replace(/\/$/, ""),
   runclaveResourceApiToken: process.env.RUNCLAVE_RESOURCE_API_TOKEN,
+  runclaveRegisterMaxAttempts: integer("RUNCLAVE_REGISTER_MAX_ATTEMPTS", 5),
+  runclaveRegisterRetryBaseMs: integer("RUNCLAVE_REGISTER_RETRY_BASE_MS", 1_000),
   runclaveSharedProviderId: process.env.RUNCLAVE_SHARED_PROVIDER_ID ?? "nas_main",
   runclaveSharedRoot: process.env.RUNCLAVE_SHARED_ROOT
     ? path.resolve(process.env.RUNCLAVE_SHARED_ROOT)

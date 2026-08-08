@@ -18,9 +18,12 @@ test("Runclave backend materializes shared inputs and registers generated output
 
   let registeredBody: Record<string, unknown> | null = null;
   let stagedBytes: Buffer | null = null;
+  let metadataAuthorization = "";
+  let registrationAuthorization = "";
   const originalGet = axios.get;
   const originalPost = axios.post;
-  axios.get = (async (url: string) => {
+  axios.get = (async (url: string, requestConfig?: { headers?: Record<string, string> }) => {
+    metadataAuthorization = String(requestConfig?.headers?.authorization ?? "");
     if (url.endsWith("/api/resources/res_input")) {
       return {
         data: {
@@ -37,8 +40,9 @@ test("Runclave backend materializes shared inputs and registers generated output
     }
     throw new Error(`Unexpected GET ${url}`);
   }) as typeof axios.get;
-  axios.post = (async (url: string, body: Record<string, unknown>) => {
+  axios.post = (async (url: string, body: Record<string, unknown>, requestConfig?: { headers?: Record<string, string> }) => {
     if (url.endsWith("/api/resources/register")) {
+      registrationAuthorization = String(requestConfig?.headers?.authorization ?? "");
       registeredBody = body;
       stagedBytes = await readFile(path.join(root, String(registeredBody?.storageKey)));
       return {
@@ -63,12 +67,14 @@ test("Runclave backend materializes shared inputs and registers generated output
     backend: config.mediaResourceBackend,
     baseUrl: config.runclaveResourceBaseUrl,
     providerId: config.runclaveSharedProviderId,
-    sharedRoot: config.runclaveSharedRoot
+    sharedRoot: config.runclaveSharedRoot,
+    token: config.runclaveResourceApiToken
   };
   config.mediaResourceBackend = "runclave";
   config.runclaveResourceBaseUrl = "http://runclave.test";
   config.runclaveSharedProviderId = "nas_test";
   config.runclaveSharedRoot = root;
+  config.runclaveResourceApiToken = "rcr_test_resource_token";
 
   try {
     const client = new AssetClient();
@@ -79,7 +85,9 @@ test("Runclave backend materializes shared inputs and registers generated output
     const output = await client.importLocal(generatedPath, "output.png", "tenant", "job_test");
     assert.equal(output.resource_id, "res_output");
     assert.equal(output.uri, "runclave-resource://res_output");
-    assert.equal(registeredBody?.subjectType, "video_job");
+    assert.equal(metadataAuthorization, "Bearer rcr_test_resource_token");
+    assert.equal(registrationAuthorization, "Bearer rcr_test_resource_token");
+    assert.equal(registeredBody?.subjectType, "external_job");
     assert.equal(registeredBody?.subjectId, "job_test");
     assert.match(String(registeredBody?.storageKey), /^\.incoming\/video-server\//);
     assert.deepEqual(stagedBytes, Buffer.from("generated"));
@@ -92,7 +100,46 @@ test("Runclave backend materializes shared inputs and registers generated output
     config.runclaveResourceBaseUrl = previous.baseUrl;
     config.runclaveSharedProviderId = previous.providerId;
     config.runclaveSharedRoot = previous.sharedRoot;
+    config.runclaveResourceApiToken = previous.token;
     axios.get = originalGet;
+    axios.post = originalPost;
+  }
+});
+
+test("Runclave registration retries transient failures and retains staging after final failure", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "video-runclave-retry-"));
+  const generatedPath = path.join(root, "generated.png");
+  await writeFile(generatedPath, Buffer.from("keep-me"));
+  const originalPost = axios.post;
+  let storageKey = "";
+  let attempts = 0;
+  axios.post = (async (_url: string, body: Record<string, unknown>) => {
+    attempts += 1;
+    storageKey = String(body.storageKey ?? "");
+    throw new axios.AxiosError("socket reset", "ECONNRESET");
+  }) as typeof axios.post;
+  const previous = {
+    backend: config.mediaResourceBackend,
+    sharedRoot: config.runclaveSharedRoot,
+    maxAttempts: config.runclaveRegisterMaxAttempts,
+    retryBaseMs: config.runclaveRegisterRetryBaseMs
+  };
+  config.mediaResourceBackend = "runclave";
+  config.runclaveSharedRoot = root;
+  config.runclaveRegisterMaxAttempts = 2;
+  config.runclaveRegisterRetryBaseMs = 1;
+  try {
+    await assert.rejects(
+      new AssetClient().importLocal(generatedPath, "generated.png", "tenant", "job_retry"),
+      /ECONNRESET/
+    );
+    assert.equal(attempts, 2);
+    assert.equal(await readFile(path.join(root, storageKey), "utf8"), "keep-me");
+  } finally {
+    config.mediaResourceBackend = previous.backend;
+    config.runclaveSharedRoot = previous.sharedRoot;
+    config.runclaveRegisterMaxAttempts = previous.maxAttempts;
+    config.runclaveRegisterRetryBaseMs = previous.retryBaseMs;
     axios.post = originalPost;
   }
 });
